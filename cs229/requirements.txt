@@ -1,0 +1,6 @@
+pygame>=2.1.0
+pillow>=9.0.0
+numpy>=1.22.0
+opencv-python>=4.5.0
+pyjigsaw==0.0.4
+cairosvg>=2.5.2 
