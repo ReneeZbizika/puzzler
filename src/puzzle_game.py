@@ -24,7 +24,7 @@ pieces = []
 selected_piece = None
 dragging = False
 game_complete = False
-show_grid = True
+show_grid = False
 show_solution_overlay = False
 
 # Create screen
@@ -47,39 +47,25 @@ class PuzzlePiece:
     
     def create_outline(self, image, outline_color=(255, 255, 0)):
         """Create an outline effect for the puzzle piece."""
-        # Create a copy of the original image for the outline
-        outline = image.copy()
-        
-        # Get the alpha mask (where the image is not transparent)
+        # Create a mask from the transparent parts of the image
         mask = pygame.mask.from_surface(image)
+        outline = mask.outline()
         
-        # Create a surface for the outline
-        outline_surf = pygame.Surface(image.get_size(), pygame.SRCALPHA)
+        # Create a new transparent surface for the outline
+        outline_surface = pygame.Surface(image.get_size(), pygame.SRCALPHA)
         
         # Draw the outline
-        mask_outline = mask.outline(1)
-        if mask_outline:
-            pygame.draw.polygon(outline_surf, outline_color, mask_outline, 3)
+        if outline:
+            pygame.draw.polygon(outline_surface, outline_color, outline, 2)
         
-        return outline_surf
+        return outline_surface
     
     def update_position(self, pos):
         self.current_pos = list(pos)
         self.rect.x = pos[0]
         self.rect.y = pos[1]
         
-        # Check if the piece is close to its target position
-        distance = math.sqrt((self.target_pos[0] - self.current_pos[0])**2 + 
-                            (self.target_pos[1] - self.current_pos[1])**2)
-        
-        # If piece is within 30 pixels of target, snap to position
-        if distance < 30:
-            self.current_pos = self.target_pos.copy()
-            self.rect.x = self.target_pos[0]
-            self.rect.y = self.target_pos[1]
-            self.is_placed_correctly = True
-            return True
-        
+        # Remove snapping behavior - pieces won't snap to target positions
         self.is_placed_correctly = False
         return False
     
@@ -308,10 +294,20 @@ def load_puzzle_pieces(svg_directory, cache_directory, rows=5, cols=8, scale_fac
     for i, png_file in enumerate(png_files):
         # Load the PNG as a Pygame surface
         png_path = os.path.join(cache_directory, png_file)
+        
+        # Handle transparency better with color key for black backgrounds
         original_surface = pygame.image.load(png_path).convert_alpha()
+        
+        # Set color key to remove black background
+        original_surface.set_colorkey((0, 0, 0))
         
         # Scale the surface
         surface = pygame.transform.smoothscale(original_surface, (piece_width, piece_height))
+        
+        # Ensure transparency is preserved
+        surface.set_colorkey((0, 0, 0))
+        if surface.get_alpha() is None:
+            surface = surface.convert_alpha()
         
         # Calculate grid position (target position)
         grid_x = i % cols
@@ -319,30 +315,29 @@ def load_puzzle_pieces(svg_directory, cache_directory, rows=5, cols=8, scale_fac
         target_x = grid_start_x + (grid_x * piece_width)
         target_y = grid_start_y + (grid_y * piece_height)
         
-        # Random position generation with collision avoidance
+        # Random position
+        rand_x = random.randint(50, SCREEN_WIDTH - 150)
+        rand_y = random.randint(50, SCREEN_HEIGHT - 150)
+        
+        # Try to avoid overlaps with basic collision check
         attempts = 0
-        while attempts < 50:  # Limit attempts to prevent infinite loops
-            # Generate random position within usable area
-            rand_x = margin_x + random.randint(0, usable_width - piece_width)
-            rand_y = margin_y + random.randint(0, usable_height - piece_height)
+        while attempts < 20:
+            rand_x = random.randint(50, SCREEN_WIDTH - 150)
+            rand_y = random.randint(50, SCREEN_HEIGHT - 150)
             
-            # Check if position overlaps with occupied regions
             position_valid = True
-            piece_region = (rand_x, rand_y)
+            new_region = (rand_x, rand_y)
             
-            for occupied in occupied_regions:
-                dist_x = abs(occupied[0] - piece_region[0])
-                dist_y = abs(occupied[1] - piece_region[1])
-                
-                # If too close to another piece, try again
-                if dist_x < region_size and dist_y < region_size:
+            for region in occupied_regions:
+                if (abs(region[0] - new_region[0]) < region_size and 
+                    abs(region[1] - new_region[1]) < region_size):
                     position_valid = False
                     break
             
-            if position_valid or attempts > 40:  # After 40 attempts, accept position anyway
-                occupied_regions.append(piece_region)
+            if position_valid or attempts > 15:
+                occupied_regions.append(new_region)
                 break
-                
+            
             attempts += 1
         
         # Create piece
@@ -377,10 +372,8 @@ def draw_grid(surface, rows, cols, piece_width, piece_height):
 
 def check_game_complete():
     """Check if all puzzle pieces are correctly placed."""
-    for piece in pieces:
-        if not piece.is_placed_correctly:
-            return False
-    return True
+    # Since pieces no longer snap into place, game is never automatically completed
+    return False
 
 def main():
     global selected_piece, dragging, game_complete, show_grid, show_solution_overlay, pieces
@@ -388,11 +381,9 @@ def main():
     # Game setup
     clock = pygame.time.Clock()
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    svg_directory = os.path.join(project_root, "output")
-    cache_directory = os.path.join(project_root, "cache")
+    pieces_directory = os.path.join(project_root, "pieces")  # Use pieces folder directly
     
-    print(f"Loading puzzle pieces from: {svg_directory}")
-    print(f"Cache directory: {cache_directory}")
+    print(f"Loading puzzle pieces from: {pieces_directory}")
     
     # Create loading screen
     screen.fill(BG_COLOR)
@@ -402,142 +393,252 @@ def main():
     screen.blit(loading_text, loading_rect)
     pygame.display.flip()
     
-    # Load puzzle pieces with scaling factor
-    scale_factor = 0.15  # Drastically reduce size to fit all pieces
-    rows, cols, piece_width, piece_height = load_puzzle_pieces(svg_directory, cache_directory, scale_factor=scale_factor)
+    # Load PNG files directly from pieces folder
+    png_files = [f for f in os.listdir(pieces_directory) if f.endswith('.png') and os.path.getsize(os.path.join(pieces_directory, f)) > 1000]
+    png_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    
+    if not png_files:
+        print("No puzzle pieces found in pieces directory!")
+        return
+        
+    # Load the first image to get dimensions
+    first_image_path = os.path.join(pieces_directory, png_files[0])
+    first_image = pygame.image.load(first_image_path).convert_alpha()
+    
+    # Scale factor for pieces - make them smaller
+    scale_factor = 0.03  # Reduced from 0.06 to make pieces even smaller
+    piece_width = int(first_image.get_width() * scale_factor)
+    piece_height = int(first_image.get_height() * scale_factor)
+    
+    # Grid layout
+    rows = 5
+    cols = 6  # Adjust based on number of pieces
+    
+    # Calculate grid positioning for the solved puzzle
+    grid_start_x = (SCREEN_WIDTH - (cols * piece_width)) // 2
+    grid_start_y = (SCREEN_HEIGHT - (rows * piece_height)) // 2
+    
+    # Define safe margins to ensure pieces are fully visible
+    margin_x = piece_width // 2
+    margin_y = piece_height // 2
+    
+    # Calculate usable area for random placement
+    usable_width = SCREEN_WIDTH - 2 * margin_x - piece_width
+    usable_height = SCREEN_HEIGHT - 2 * margin_y - piece_height
+    
+    # For avoiding placing pieces too close together
+    occupied_regions = []
+    region_size = max(piece_width, piece_height) + 5  # Add small buffer
+    
+    # Clear existing pieces
+    pieces = []
+    
+    # Load and create pieces
+    for i, png_file in enumerate(png_files):
+        # Load the PNG as a Pygame surface
+        png_path = os.path.join(pieces_directory, png_file)
+        
+        try:
+            # Handle transparency better with color key for black backgrounds
+            original_surface = pygame.image.load(png_path).convert_alpha()
+            
+            # Set color key to remove black background
+            original_surface.set_colorkey((0, 0, 0))
+            
+            # Scale the surface
+            surface = pygame.transform.smoothscale(original_surface, (piece_width, piece_height))
+            
+            # Ensure transparency is preserved
+            surface.set_colorkey((0, 0, 0))
+            if surface.get_alpha() is None:
+                surface = surface.convert_alpha()
+            
+            # Calculate grid position (target position)
+            grid_x = i % cols
+            grid_y = i // cols
+            target_x = grid_start_x + (grid_x * piece_width)
+            target_y = grid_start_y + (grid_y * piece_height)
+            
+            # Random position
+            rand_x = random.randint(50, SCREEN_WIDTH - 150)
+            rand_y = random.randint(50, SCREEN_HEIGHT - 150)
+            
+            # Try to avoid overlaps with basic collision check
+            attempts = 0
+            while attempts < 20:
+                rand_x = random.randint(50, SCREEN_WIDTH - 150)
+                rand_y = random.randint(50, SCREEN_HEIGHT - 150)
+                
+                position_valid = True
+                new_region = (rand_x, rand_y)
+                
+                for region in occupied_regions:
+                    if (abs(region[0] - new_region[0]) < region_size and 
+                        abs(region[1] - new_region[1]) < region_size):
+                        position_valid = False
+                        break
+                
+                if position_valid or attempts > 15:
+                    occupied_regions.append(new_region)
+                    break
+                
+                attempts += 1
+            
+            # Get piece number from filename
+            try:
+                piece_num = int(png_file.split('_')[1].split('.')[0])
+            except (IndexError, ValueError):
+                piece_num = i + 1
+            
+            # Create piece
+            piece = PuzzlePiece(
+                image=surface,
+                original_index=piece_num,
+                target_pos=[target_x, target_y],
+                current_pos=[rand_x, rand_y]
+            )
+            pieces.append(piece)
+            print(f"Loaded piece {piece_num}")
+            
+        except Exception as e:
+            print(f"Error loading {png_file}: {e}")
+    
+    print(f"Successfully loaded {len(pieces)} pieces")
     
     # Main game loop
     running = True
     offset_x, offset_y = 0, 0  # Initialize offset variables
     
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            
-            elif event.type == pygame.KEYDOWN:
-                # Toggle grid with G key
-                if event.key == pygame.K_g:
-                    show_grid = not show_grid
+    try:
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
                 
-                # Show solution overlay with S key
-                elif event.key == pygame.K_s:
-                    show_solution_overlay = not show_solution_overlay
+                elif event.type == pygame.KEYDOWN:
+                    # Toggle grid with G key
+                    if event.key == pygame.K_g:
+                        show_grid = not show_grid
                     
-                    # Adjust transparency of pieces
-                    for piece in pieces:
-                        if show_solution_overlay:
-                            piece.alpha = 128
-                        else:
-                            piece.alpha = 255
-                
-                # Reset puzzle with R key
-                elif event.key == pygame.K_r:
-                    # Randomize positions of all pieces
-                    for piece in pieces:
-                        rand_x = random.randint(50, SCREEN_WIDTH - piece_width - 50)
-                        rand_y = random.randint(50, SCREEN_HEIGHT - piece_height - 50)
-                        piece.update_position([rand_x, rand_y])
-                        piece.is_placed_correctly = False
-                    game_complete = False
-            
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Left mouse button
-                    # Reset selection
-                    if selected_piece:
-                        selected_piece.is_selected = False
+                    # Show solution overlay with S key
+                    elif event.key == pygame.K_s:
+                        show_solution_overlay = not show_solution_overlay
                         
-                    # Check if we clicked on a piece
-                    for piece in reversed(pieces):  # Reverse to check top pieces first
-                        # Check for click using mask collision for precise shape detection
-                        pos_in_piece = (event.pos[0] - piece.rect.x, event.pos[1] - piece.rect.y)
-                        if piece.rect.collidepoint(event.pos) and 0 <= pos_in_piece[0] < piece.image.get_width() and 0 <= pos_in_piece[1] < piece.image.get_height():
-                            # Check if the pixel at this position has alpha > 0
-                            try:
-                                if piece.image.get_at(pos_in_piece)[3] > 0:  # Alpha > 0 means not transparent
-                                    selected_piece = piece
-                                    piece.is_selected = True
-                                    # Move the selected piece to the end of the list (top of the pile)
-                                    pieces.remove(piece)
-                                    pieces.append(piece)
-                                    dragging = True
-                                    # Store offset for smooth dragging
-                                    offset_x = piece.rect.x - event.pos[0]
-                                    offset_y = piece.rect.y - event.pos[1]
-                                    break
-                            except IndexError:
-                                # If we get an index error, the pixel is outside the image's actual dimensions
-                                pass
-            
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if event.button == 1 and dragging:  # Left mouse button release
-                    dragging = False
-                    if selected_piece:
-                        # Check if piece is near its target position
-                        if selected_piece.update_position(selected_piece.current_pos):
-                            # Piece snapped to position
-                            if not game_complete and check_game_complete():
-                                game_complete = True
-                                print("Puzzle completed! Congratulations!")
-                        
-                        selected_piece.is_selected = False
-                        selected_piece = None
-            
-            elif event.type == pygame.MOUSEMOTION:
-                if dragging and selected_piece:
-                    # Update piece position
-                    mouse_x, mouse_y = event.pos
-                    selected_piece.update_position((mouse_x + offset_x, mouse_y + offset_y))
-        
-        # Draw everything
-        screen.fill(BG_COLOR)
-        
-        # Draw grid
-        draw_grid(screen, rows, cols, piece_width, piece_height)
-        
-        # Draw solution overlay if enabled
-        if show_solution_overlay:
-            grid_start_x = (SCREEN_WIDTH - (cols * piece_width)) // 2
-            grid_start_y = (SCREEN_HEIGHT - (rows * piece_height)) // 2
-            
-            for i, piece in enumerate(sorted(pieces, key=lambda p: p.original_index)):
-                grid_x = i % cols
-                grid_y = i // cols
-                target_x = grid_start_x + (grid_x * piece_width)
-                target_y = grid_start_y + (grid_y * piece_height)
+                        # Adjust transparency of pieces
+                        for piece in pieces:
+                            if show_solution_overlay:
+                                piece.alpha = 128
+                            else:
+                                piece.alpha = 255
+                    
+                    # Reset puzzle with R key
+                    elif event.key == pygame.K_r:
+                        # Randomize positions of all pieces
+                        for piece in pieces:
+                            rand_x = random.randint(50, SCREEN_WIDTH - piece_width - 50)
+                            rand_y = random.randint(50, SCREEN_HEIGHT - piece_height - 50)
+                            piece.update_position([rand_x, rand_y])
+                            piece.is_placed_correctly = False
+                        game_complete = False
                 
-                # Draw a semi-transparent version at the target position
-                temp = piece.image.copy()
-                temp.set_alpha(100)  # Very transparent
-                screen.blit(temp, (target_x, target_y))
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:  # Left mouse button
+                        # Reset selection
+                        if selected_piece:
+                            selected_piece.is_selected = False
+                            
+                        # Check if we clicked on a piece
+                        for piece in reversed(pieces):  # Reverse to check top pieces first
+                            # Check for click using mask collision for precise shape detection
+                            pos_in_piece = (event.pos[0] - piece.rect.x, event.pos[1] - piece.rect.y)
+                            if piece.rect.collidepoint(event.pos) and 0 <= pos_in_piece[0] < piece.image.get_width() and 0 <= pos_in_piece[1] < piece.image.get_height():
+                                # Check if the pixel at this position has alpha > 0
+                                try:
+                                    if piece.image.get_at(pos_in_piece)[3] > 0:  # Alpha > 0 means not transparent
+                                        selected_piece = piece
+                                        piece.is_selected = True
+                                        # Move the selected piece to the end of the list (top of the pile)
+                                        pieces.remove(piece)
+                                        pieces.append(piece)
+                                        dragging = True
+                                        # Store offset for smooth dragging
+                                        offset_x = piece.rect.x - event.pos[0]
+                                        offset_y = piece.rect.y - event.pos[1]
+                                        break
+                                except IndexError:
+                                    # If we get an index error, the pixel is outside the image's actual dimensions
+                                    pass
+                
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    if event.button == 1 and dragging:  # Left mouse button release
+                        dragging = False
+                        if selected_piece:
+                            # No longer check if piece is near its target position
+                            selected_piece.is_selected = False
+                            selected_piece = None
+                
+                elif event.type == pygame.MOUSEMOTION:
+                    if dragging and selected_piece:
+                        # Update piece position
+                        mouse_x, mouse_y = event.pos
+                        selected_piece.update_position((mouse_x + offset_x, mouse_y + offset_y))
+            
+            # Draw everything
+            screen.fill(BG_COLOR)
+            
+            # Draw grid
+            draw_grid(screen, rows, cols, piece_width, piece_height)
+            
+            # Draw solution overlay if enabled
+            if show_solution_overlay:
+                grid_start_x = (SCREEN_WIDTH - (cols * piece_width)) // 2
+                grid_start_y = (SCREEN_HEIGHT - (rows * piece_height)) // 2
+                
+                for i, piece in enumerate(sorted(pieces, key=lambda p: p.original_index)):
+                    grid_x = i % cols
+                    grid_y = i // cols
+                    target_x = grid_start_x + (grid_x * piece_width)
+                    target_y = grid_start_y + (grid_y * piece_height)
+                    
+                    # Draw a semi-transparent version at the target position
+                    temp = piece.image.copy()
+                    temp.set_alpha(100)  # Very transparent
+                    screen.blit(temp, (target_x, target_y))
+            
+            # Draw pieces
+            for piece in pieces:
+                piece.draw(screen)
+            
+            # Display game complete message
+            if game_complete:
+                font = pygame.font.SysFont('Arial', 36)
+                text = font.render('Puzzle Complete! Press R to restart', True, (0, 200, 0))
+                text_rect = text.get_rect(center=(SCREEN_WIDTH//2, 50))
+                screen.blit(text, text_rect)
+            
+            # Draw controls info
+            font = pygame.font.SysFont('Arial', 16)
+            controls = [
+                "Click and drag pieces to move them freely",
+                "S: Show/Hide Solution Overlay",
+                "R: Reset puzzle positions",
+                "ESC: Quit game"
+            ]
+            for i, control in enumerate(controls):
+                text = font.render(control, True, (50, 50, 50))
+                screen.blit(text, (20, SCREEN_HEIGHT - 100 + i*20))
+            
+            pygame.display.flip()
+            clock.tick(60)
+            
+    except Exception as e:
+        print(f"Error in game loop: {e}")
         
-        # Draw pieces
-        for piece in pieces:
-            piece.draw(screen)
-        
-        # Display game complete message
-        if game_complete:
-            font = pygame.font.SysFont('Arial', 36)
-            text = font.render('Puzzle Complete! Press R to restart', True, (0, 200, 0))
-            text_rect = text.get_rect(center=(SCREEN_WIDTH//2, 50))
-            screen.blit(text, text_rect)
-        
-        # Draw controls info
-        font = pygame.font.SysFont('Arial', 16)
-        controls = [
-            "G: Toggle Grid",
-            "S: Show/Hide Solution Overlay",
-            "R: Reset Puzzle"
-        ]
-        for i, control in enumerate(controls):
-            text = font.render(control, True, (50, 50, 50))
-            screen.blit(text, (20, 20 + i*20))
-        
-        pygame.display.flip()
-        clock.tick(60)
-    
-    pygame.quit()
-    sys.exit()
+    finally:
+        # Clean up resources
+        print("Shutting down...")
+        # Force immediate exit to avoid hanging
+        os._exit(0)
 
 if __name__ == "__main__":
     main() 
