@@ -1,0 +1,28 @@
+name: puzzle
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12  # Set your preferred Python version
+  - pip
+  - numpy
+  - scipy
+  - matplotlib
+  - pygame
+  - gymnasium  # The latest version of OpenAI Gym (use gym if older gym is needed)
+  - gymnasium[box2d]  # Install Box2D-based environments if needed
+  - gymnasium[toy-text]  # Install text-based toy environments
+  - pillow  # For image processing
+  - tqdm  # For progress bars
+  - ipython  # Useful for debugging
+  - glob2
+  - pip:
+      #- gymnasium[extra]  # Installs extra dependencies for visualization, no longer supported
+      - stable-baselines3  # If you want RL algorithms pre-implemented
+      - torch  # PyTorch (needed for stable-baselines3), done
+      - torchvision  # Additional PyTorch utilities for image-based environments, done
+      - imageio  # For rendering GIFs, done
+      - opencv-python  # If you need OpenCV for image processing, done
+      - pyopengl  # For rendering environments, done
+      - cairosvg
+      - pyjigsaw
