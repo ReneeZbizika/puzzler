@@ -197,7 +197,7 @@ def convert_svg_to_png(input_svg, output_png):
 def extract_puzzle_pieces(template_png, original_png, output_folder, xn=15, yn=10, threshold=200, dilate_edges=True):
     """
     Uses the puzzle template PNG (white background, black edges) as a mask to extract each piece
-    from the original image. The extracted pieces are saved in output_folder.
+    from the original image. The extracted pieces are saved in output_folder with transparent backgrounds.
     """
     template = cv2.imread(template_png, cv2.IMREAD_GRAYSCALE)
     if template is None:
@@ -238,14 +238,33 @@ def extract_puzzle_pieces(template_png, original_png, output_folder, xn=15, yn=1
             print(f"Ignoring contour {idx} with area {area} (below min_area threshold)")
             continue
     
+        # Create a mask for this piece
         piece_mask = np.zeros_like(template)
         cv2.drawContours(piece_mask, [cnt], -1, 255, thickness=-1)
-        piece = cv2.bitwise_and(original, original, mask=piece_mask)
+        
+        # Create a 4-channel image (RGBA) with transparent background
+        # First convert original to BGRA (add alpha channel)
+        original_rgba = cv2.cvtColor(original, cv2.COLOR_BGR2BGRA)
+        
+        # Create a transparent image of the same size
+        piece_transparent = np.zeros_like(original_rgba)
+        
+        # Copy the RGB channels from the original image where the mask is non-zero
+        piece_transparent[..., 0] = np.where(piece_mask == 255, original[..., 0], 0)
+        piece_transparent[..., 1] = np.where(piece_mask == 255, original[..., 1], 0)
+        piece_transparent[..., 2] = np.where(piece_mask == 255, original[..., 2], 0)
+        
+        # Set alpha channel to fully opaque (255) where the mask is non-zero, and fully transparent (0) elsewhere
+        piece_transparent[..., 3] = np.where(piece_mask == 255, 255, 0)
+        
+        # Crop to bounding rectangle
         x, y, w, h = cv2.boundingRect(cnt)
-        piece_cropped = piece[y:y+h, x:x+w]
+        piece_cropped = piece_transparent[y:y+h, x:x+w]
+        
+        # Save with transparency
         out_path = os.path.join(output_folder, f"piece_{idx+1}.png")
         cv2.imwrite(out_path, piece_cropped)
-        print(f"Saved piece {idx+1} to {out_path}")
+        print(f"Saved piece {idx+1} to {out_path} with transparent background")
 
 ####################
 # Main Entry Point #
@@ -271,6 +290,9 @@ def main():
     parser.add_argument("--no-dilate", action="store_true", help="Disable dilation when extracting pieces.")
     parser.add_argument("--use_original_size", action="store_true",
                         help="Automatically use the original image dimensions for the puzzle template.")
+    # Add new argument for scaling factor
+    parser.add_argument("--scale_factor", type=float, default=0.25,
+                        help="Scale factor for the final puzzle pieces (default: 0.25 = 25% of original size)")
     
     args = parser.parse_args()
 
@@ -287,6 +309,10 @@ def main():
         if args.width == 0 or args.height == 0:
             raise ValueError("Please provide valid --width and --height values or use --use_original_size.")
 
+    # Store original dimensions before scaling
+    original_width = args.width
+    original_height = args.height
+    
     # Step 1: Generate the puzzle template as an SVG.
     generator = JigsawPuzzleGenerator(
         seed=args.seed,
@@ -308,12 +334,66 @@ def main():
     
     # Step 3: Use the template PNG as a mask to extract pieces from the original image.
     extract_puzzle_pieces(args.output_template_png, args.original, args.output_pieces_folder,
-                            xn = args.xn, yn = args.yn, threshold=args.threshold, dilate_edges=not args.no_dilate)
+                          xn=args.xn, yn=args.yn, threshold=args.threshold, dilate_edges=not args.no_dilate)
     
-# Example run #
-# python3 full_pipeline.py original.png --xn 5 --yn 5 --seed 1234 --use_original_size
-# python3 src/full_pipeline.py data/img_2.jpg --xn 5 --yn 5 --seed 1234 --output_pieces_folder pieces_img_2 --use_original_size
+    # Step 4: Scale down the extracted pieces
+    scale_puzzle_pieces(args.output_pieces_folder, args.scale_factor)
+    
+    # Print the original and scaled dimensions
+    scaled_width = int(original_width * args.scale_factor)
+    scaled_height = int(original_height * args.scale_factor)
+    print(f"Original dimensions: {original_width}x{original_height}")
+    print(f"Scaled dimensions (after {args.scale_factor*100}% scaling): {scaled_width}x{scaled_height}")
 
+# Add a new function to scale down the puzzle pieces
+def scale_puzzle_pieces(pieces_folder, scale_factor):
+    """
+    Scale down all puzzle pieces in the given folder by the specified scale factor.
+    Preserves transparency in the images.
+    
+    Args:
+        pieces_folder: Folder containing the puzzle pieces
+        scale_factor: Factor to scale the pieces by (e.g., 0.25 for 25% of original size)
+    """
+    if not os.path.exists(pieces_folder):
+        print(f"Warning: Pieces folder {pieces_folder} does not exist.")
+        return
+    
+    piece_files = [f for f in os.listdir(pieces_folder) if f.endswith('.png')]
+    if not piece_files:
+        print(f"Warning: No PNG files found in {pieces_folder}.")
+        return
+    
+    print(f"Scaling {len(piece_files)} puzzle pieces by factor {scale_factor}...")
+    
+    for piece_file in piece_files:
+        piece_path = os.path.join(pieces_folder, piece_file)
+        
+        # Load the piece image with alpha channel
+        piece_img = cv2.imread(piece_path, cv2.IMREAD_UNCHANGED)
+        if piece_img is None:
+            print(f"Warning: Could not load piece {piece_path}.")
+            continue
+        
+        # Get original dimensions
+        h, w = piece_img.shape[:2]
+        
+        # Calculate new dimensions
+        new_w = int(w * scale_factor)
+        new_h = int(h * scale_factor)
+        
+        # Resize the image, preserving transparency
+        resized_img = cv2.resize(piece_img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        
+        # Save the resized image (overwrite the original)
+        cv2.imwrite(piece_path, resized_img)
+        
+        print(f"Scaled {piece_file} from {w}x{h} to {new_w}x{new_h}")
+    
+    print(f"Finished scaling all puzzle pieces in {pieces_folder}")
+
+# Example run example FROM SRC FOLDER
+# python src/full_pipeline.py data/img_2.jpg --xn 5 --yn 5 --seed 1234 --output_pieces_folder pieces_img_2 --use_original_size --scale_factor 0.05
 
 if __name__ == "__main__":
     main()

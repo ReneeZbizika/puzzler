@@ -25,4 +25,3 @@ dependencies:
       - opencv-python  # If you need OpenCV for image processing, done
       - pyopengl  # For rendering environments, done
       - cairosvg
-      - pyjigsaw
