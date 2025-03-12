@@ -323,8 +323,8 @@ def load_puzzle_pieces(svg_directory, cache_directory, rows=5, cols=8, scale_fac
         target_y = grid_start_y + (grid_y * piece_height)
         
         # Starting position range
-        start_x_range = (BOX_X + BOX_WIDTH + 50, SCREEN_WIDTH - piece_size - 50)
-        start_y_range = (50, SCREEN_HEIGHT - piece_size - 50)
+        #start_x_range = (BOX_X + BOX_WIDTH + 50, SCREEN_WIDTH - piece_size - 50)
+        #start_y_range = (50, SCREEN_HEIGHT - piece_size - 50)
         
         grid_x_offset = BOX_X + 50
         grid_y_offset = BOX_Y + 50
