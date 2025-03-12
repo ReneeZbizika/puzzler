@@ -218,7 +218,7 @@ def main():
         render_state(screen, state)
         
         # Render the elapsed time text on the screen
-        #TODO: currently just displays number of moves (ex. 100) make it look nice
+        #TODO: currently just displays number of seconds (ex. 100) make it look nice
         time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
         screen.blit(time_text, (10, 10))
         
