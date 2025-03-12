@@ -5,6 +5,8 @@ import numpy as np
 import cv2
 import math
 import scipy as sp
+import itertools
+import os
 
 # Helper functions
 def load_image(path): 
@@ -41,12 +43,12 @@ def segment_piece_black_bg(image_path):
     # 2. Convert to grayscale
     gray_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
     
-    print("Min pixel value:", np.min(color_img))
-    print("Max pixel value:", np.max(color_img))
-    print("Mean pixel value:", np.mean(color_img))
-    print(color_img.shape)
+    #print("Min pixel value:", np.min(color_img))
+    #print("Max pixel value:", np.max(color_img))
+    #print("Mean pixel value:", np.mean(color_img))
+    #print(color_img.shape)
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    print("Loaded image shape:", image.shape)
+    #print("Loaded image shape:", image.shape)
 
     # 3. Threshold for near-black background
     #    If background is near pure black, a low threshold like 10 or 15 can help.
@@ -140,85 +142,166 @@ def edge_compatibility(edge1_signature, edge2_signature, alpha=1.0):
     # Compute the pointwise Euclidean distance between the signatures:
     # Here, each signature is a 2D point (kappa, kappa_s)
     differences = np.linalg.norm(edge1_signature - edge2_signature, axis=1)
-    
     # Compute the mean difference:
     mean_diff = np.mean(differences)
-
     # Convert the mean difference to a score between 0 and 1:
     # Here we chose a simple exponential decay: (possible to use sigmoid function?)
     score = np.exp(-alpha * mean_diff)
     
     return score
 
+def segment_piece_black_bg(image_path):
+    """Segments a puzzle piece from a black background and extracts its bounding box."""
+    
+    # Load image
+    color_img = cv2.imread(image_path)
+    if color_img is None:
+        raise ValueError(f"Could not load image: {image_path}")
 
-def compute_compatibility_matrix(edge_signatures, alpha=1.0): 
+    # Convert to grayscale
+    gray_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
+    
+    # Apply binary thresholding
+    _, thresh = cv2.threshold(gray_img, 5, 255, cv2.THRESH_BINARY)
+    
+    # Find contours
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        raise ValueError(f"No contours found in {image_path}. Check your threshold or image quality.")
+    
+    # Select the largest contour (assuming a single puzzle piece)
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    # Compute the bounding box (min area rectangle)
+    rect = cv2.minAreaRect(largest_contour)
+    box = cv2.boxPoints(rect)
+    box = np.int32(box)  # Convert to integer coordinates
+
+    return largest_contour.squeeze(), box  # Ensure only two values are returned
+
+def extract_four_edges(contour, bounding_box):
+    
+    # Sort bounding box points to ensure order: top-left, top-right, bottom-right, bottom-left
+    box = sorted(bounding_box, key=lambda p: (p[1], p[0]))  # Sort by y, then x
+    
+    top_left, top_right = sorted(box[:2], key=lambda p: p[0])  # Top two points
+    bottom_left, bottom_right = sorted(box[2:], key=lambda p: p[0])  # Bottom two points
+
+    # Define four edge segments based on bounding box
+    edges = {
+        "top": [],
+        "right": [],
+        "bottom": [],
+        "left": []
+    }
+
+    # Loop through the contour and assign each point to the closest edge
+    for point in contour:
+        x, y = point
+
+        # Compute distances to each of the four edges
+        dist_top = abs(y - top_left[1])  # Distance to top edge
+        dist_bottom = abs(y - bottom_left[1])  # Distance to bottom edge
+        dist_left = abs(x - top_left[0])  # Distance to left edge
+        dist_right = abs(x - top_right[0])  # Distance to right edge
+
+        # Assign to the closest edge
+        min_dist = min(dist_top, dist_bottom, dist_left, dist_right)
+
+        if min_dist == dist_top:
+            edges["top"].append(point)
+        elif min_dist == dist_bottom:
+            edges["bottom"].append(point)
+        elif min_dist == dist_left:
+            edges["left"].append(point)
+        else:
+            edges["right"].append(point)
+
+    # Convert lists to numpy arrays
+    for key in edges.keys():
+        edges[key] = np.array(edges[key])
+
+    return [edges["top"], edges["right"], edges["bottom"], edges["left"]]
+
+    
+def extract_edges_from_pieces(folder_path, num_resample_points=100):
+    """Extracts all four edges from each puzzle piece and returns their signatures."""
+    image_files = sorted([f for f in os.listdir(folder_path) if f.endswith((".png", ".jpg", ".jpeg"))])
+    image_paths = [os.path.join(folder_path, f) for f in image_files]
+    
+    edge_signatures = []  
+    edge_to_piece_map = {}  
+    edge_counter = 0
+
+    for piece_id, image_path in enumerate(image_paths):
+        try:
+            # Extract the puzzle piece contour and bounding box
+            contour, bounding_box = segment_piece_black_bg(image_path)
+            
+            # Extract the four edges from the contour
+            edges = extract_four_edges(contour, bounding_box)
+
+            for edge_id, edge in enumerate(edges):
+                if edge.shape[0] < 5:  # Avoid very small edges that could cause errors
+                    print(f"Skipping small edge {edge_id} for piece {piece_id}")
+                    continue
+
+                # Compute signature for each edge
+                signature = compute_signature(edge)
+                resampled_signature = resample_edge(signature, num_resample_points) if signature.shape[0] > 3 else signature
+
+                edge_signatures.append(resampled_signature)
+                edge_name = f"edge_{edge_counter}"
+                edge_to_piece_map[edge_name] = (piece_id, edge_id)  # Tracking four edges per piece
+                edge_counter += 1
+        except ValueError as e:
+            print(f"Skipping {image_path}: {e}")
+
+    return edge_signatures, edge_to_piece_map, image_files
+
+def compute_compatibility_matrix(edge_signatures, alpha=1.0):
     """
-    Builds a compatibility matrix that holds the score for every pair of edges.
-
+    Computes compatibility scores between all extracted edges.
+    
     Params:
-    edge_signatures (list): list of edge signatures. 
-    alpha (int or float): constant for threshhold
-
+        edge_signatures (list): A list of resampled edge signatures.
+        alpha (float): Sensitivity factor for similarity scoring.
+    
     Returns:
-    matrix: Compatibility matrix where every entry (i, j) is the compatibility score between edge i and edge j.
+        np.array: Compatibility matrix where entry (i, j) is the compatibility score between edge i and edge j.
     """
-    num_edges = len(edge_signatures) 
-    comp_matrix = np.zeros((num_edges, num_edges)) 
-    for i in range(num_edges): 
-        for j in range(num_edges): # Set diagonal entries to 0 (or 1) depending on your convention. 
-            if i == j: 
-                comp_matrix[i, j] = 0 # or leave it as is 
-            else: 
-                comp_matrix[i, j] = edge_compatibility(edge_signatures[i], edge_signatures[j], alpha) 
-        
-    return comp_matrix
+    num_edges = len(edge_signatures)
+    compatibility_matrix = np.zeros((num_edges, num_edges))  # Square matrix for edges
+    
+    # Compute pairwise compatibility scores
+    for (i, edge_A), (j, edge_B) in itertools.combinations(enumerate(edge_signatures), 2):
+        score = edge_compatibility(edge_A, edge_B, alpha)
+        compatibility_matrix[i, j] = score
+        compatibility_matrix[j, i] = score  # Symmetric matrix
 
+    return compatibility_matrix
 
-# Pipeline
-def pipeline(image_A_path, image_B_path, num_resample_points=100, alpha=0.1): 
-    """ Pipeline to load two puzzle piece images, segment their contours, compute and 
-    resample their edge signatures, and output an edge compatibility score. """ 
-    # Load images. 
-    image_A = load_image(image_A_path) 
-    image_B = load_image(image_B_path)
-    # Segment the puzzle pieces to extract their contours.
-    contour_A = segment_piece(image_A)
-    contour_B = segment_piece(image_B)
+if __name__ == "__main__":
+    folder_path = "pieces_img_2"
+    
+    # Extract edges and compute compatibility
+    edge_signatures, edge_to_piece_map, image_files = extract_edges_from_pieces(folder_path)
+    compatibility_matrix = compute_compatibility_matrix(edge_signatures)
 
-    # Compute the discrete edge signature for each contour.
-    signature_A = compute_signature(contour_A)
-    signature_B = compute_signature(contour_B)
+    # Save and display results
+    np.savetxt("edge_compatibility_matrix.csv", compatibility_matrix, delimiter=",", fmt="%.4f")
 
-    # Resample the signatures to have a fixed number of points.
-    resampled_A = resample_edge(signature_A, num_resample_points)
-    resampled_B = resample_edge(signature_B, num_resample_points)
-
-    # Optionally, if the starting points of the signatures are arbitrary,
-    # one could perform cyclic shifting here to find the best alignment.
-    # For now, we simply compare them as is.
-
-    # Compute the compatibility score.
-    score = edge_compatibility(resampled_A, resampled_B, alpha=alpha)
-
-    return score
-
-# Example usage
-#def main ():
+    print("Edge-to-Piece Mapping:", edge_to_piece_map)
+    print("Edge Compatibility Matrix:\n", compatibility_matrix)
 
 # DEBUGGING USE 
-"""if __name__ == "__main__":
+"""
+if __name__ == "__main__":
     image_path = "pieces_img_2/piece_4.png"
     contour_points, thresh_img = segment_piece_black_bg(image_path)
     
     print("Number of points in contour:", len(contour_points))
     # Optionally save the thresholded image for debugging
-    cv2.imwrite("thresh_debug.png", thresh_img)"""
-
-# Main
-if __name__ == "__main__":
-    #main()
-    image_A_path = "pieces_img_2/piece_2.png"  # Path to puzzle piece A image. 
-    image_B_path = "pieces_img_2/piece_3.png" # Path to puzzle piece B image.
-
-    score = pipeline(image_A_path, image_B_path, num_resample_points=100, alpha=0.1)
-    print("Edge Compatibility Score:", score)
+    cv2.imwrite("thresh_debug.png", thresh_img)
+"""

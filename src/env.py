@@ -54,6 +54,7 @@ class State:
         self.edge_info = edge_info
         self.time_elapsed = 0  # Can track steps or elapsed time
     
+    #TODO
     def update_edge_info(self):
         # Update edge compatibility info based on current assembly.
         pass

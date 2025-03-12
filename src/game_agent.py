@@ -3,6 +3,7 @@ import sys
 import pygame
 import random
 import time
+import numpy as np
 
 from env import State, Action, Piece, apply_action
 from mcts import MCTS # Import your MCTS function from your MCTS module
@@ -24,6 +25,7 @@ BOX_WIDTH = 600
 BOX_HEIGHT = 700
 
 # ----- Piece Class -----
+"""
 class Piece:
     def __init__(self, piece_id, image, x, y):
         self.id = piece_id
@@ -64,16 +66,19 @@ class State:
         new_state = State(new_pieces)
         new_state.time_elapsed = self.time_elapsed
         return new_state
+"""
 
 # ----- Action Class -----
-class Action:
+"""
+    class Action:
     def __init__(self, piece_id, delta_x, delta_y):
         self.piece_id = piece_id
         self.delta_x = delta_x
         self.delta_y = delta_y
 
     def __repr__(self):
-        return f"Action(piece_id={self.piece_id}, dx={self.delta_x}, dy={self.delta_y})"
+        return f"Action(piece_id={self.piece_id}, dx={self.delta_x}, dy={self.delta_y})
+"""
 
 # ----- Helper Functions for Loading Pieces -----
 def set_puzzle_dimensions(image_name):    
@@ -147,8 +152,8 @@ def is_terminal(state):
             return False
     return True
 
-# ----- Placeholder for Agent Action Selection (Dummy Random) -----
-def agent_select_action(state):
+# ----- [DUMMY] Agent Action Selection -----
+def dummy_agent_select_action(state):
     """
     This function should use MCTS (or any agent logic) to choose the next action.
     For now, we provide a dummy version that randomly moves one piece.
@@ -185,14 +190,27 @@ def main():
     if not pieces_dict:
         return
     
-    state = State(pieces_dict)
+    # Define an assembly matrix for the puzzle. For example, a 5x6 grid (adjust dimensions as needed):
+    assembly = np.zeros((5, 6))
+    
+    # The unplaced pieces are all the pieces that were loaded:
+    unplaced_pieces = list(pieces_dict.keys())
+    
+    #TODO update edge_info using edge_match.py
+    # Start with an empty edge info dictionary (or load your specific edge data)
+    # edge_info = {}
+    
+    # Create the State object using the unified State class from env.py
+    state = State(pieces_dict, assembly, unplaced_pieces, edge_info)
+    
     clock = pygame.time.Clock()
     running = True
 
     while running:
         # Instead of handling mouse events, let the agent choose an action
         if not is_terminal(state):
-            action = agent_select_action(state)
+            action = dummy_agent_select_action(state) #switch between dummy and real
+            #action = dummy_agent_select_action(state)
             state = apply_action(state, action)
         else:
             print("Terminal state reached!")
