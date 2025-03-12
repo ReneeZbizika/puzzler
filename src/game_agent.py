@@ -203,10 +203,32 @@ def main():
         # Render the current state
         render_state(screen, state)
         
-        # Render the elapsed time text on the screen
-        #TODO: currently just displays number of seconds (ex. 100) make it look nice
-        time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
-        screen.blit(time_text, (10, 10))
+        # Render the elapsed time display with nicer formatting
+        # Create a panel background for the text
+        panel_width = 200
+        panel_height = 40
+        panel_color = (240, 240, 240)  # Light gray
+        panel_border = (50, 50, 50)    # Dark gray
+        # Position the panel in the top-right corner with some margin
+        panel_x = SCREEN_WIDTH - panel_width - 20
+        panel_y = 20
+        # Draw the panel with rounded corners and border
+        pygame.draw.rect(screen, panel_border, (panel_x-2, panel_y-2, panel_width+4, panel_height+4), border_radius=10)
+        pygame.draw.rect(screen, panel_color, (panel_x, panel_y, panel_width, panel_height), border_radius=10)
+        # Format the moves text with a nice font
+        try:
+            # Try to use a nicer font if available
+            time_font = pygame.font.Font(None, 28)  # None uses default font, 28 is size
+        except:
+            # Fall back to system font if custom font fails
+            time_font = font
+        # Format the text with better labels
+        time_text = time_font.render(f"Time Elapsed: {state.time_elapsed}", True, (20, 20, 20))
+        # Center the text in the panel
+        text_x = panel_x + (panel_width - time_text.get_width()) // 2
+        text_y = panel_y + (panel_height - time_text.get_height()) // 2
+        # Draw the text
+        screen.blit(time_text, (text_x, text_y))
         
         pygame.display.flip()
         
