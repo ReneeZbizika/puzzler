@@ -19,6 +19,13 @@ HIGHLIGHT_COLOR = (255, 255, 0, 100)  # Yellow highlight with alpha
 GRID_COLOR = (200, 200, 200)
 SOLVED_BORDER_COLOR = (0, 255, 0)  # Green border for solved puzzles
 
+BOX_COLOR = (180, 180, 180)  # Grey puzzle area
+# Puzzle board area
+BOX_WIDTH = 600  # Half the screen
+BOX_HEIGHT = 700
+BOX_X = 50
+BOX_Y = 50
+
 # Game state
 pieces = []
 selected_piece = None
@@ -314,6 +321,13 @@ def load_puzzle_pieces(svg_directory, cache_directory, rows=5, cols=8, scale_fac
         grid_y = i // cols
         target_x = grid_start_x + (grid_x * piece_width)
         target_y = grid_start_y + (grid_y * piece_height)
+        
+        # Starting position range
+        start_x_range = (BOX_X + BOX_WIDTH + 50, SCREEN_WIDTH - piece_size - 50)
+        start_y_range = (50, SCREEN_HEIGHT - piece_size - 50)
+        
+        grid_x_offset = BOX_X + 50
+        grid_y_offset = BOX_Y + 50
         
         # Random position
         rand_x = random.randint(50, SCREEN_WIDTH - 150)
