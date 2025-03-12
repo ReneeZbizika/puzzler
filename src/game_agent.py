@@ -4,7 +4,9 @@ import pygame
 import random
 import time
 
+from env import State, Action, Piece, apply_action
 from mcts import MCTS # Import your MCTS function from your MCTS module
+# from mcts import apply_action as mcts_apply_action, is_terminal
 
 # Initialize Pygame
 pygame.init()
@@ -133,16 +135,6 @@ def render_state(screen, state):
         piece.draw(screen)
     pygame.display.flip()
 
-# ----- Environment Dynamics -----
-def apply_action(state, action):
-    """Apply an action to the state and return a new state."""
-    new_state = state.copy()
-    if action.piece_id in new_state.pieces:
-        piece = new_state.pieces[action.piece_id]
-        piece.update_position(action.delta_x, action.delta_y)
-    # Update time, etc.
-    new_state.time_elapsed += 1
-    return new_state
 
 def is_terminal(state):
     """

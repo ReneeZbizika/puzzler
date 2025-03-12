@@ -9,6 +9,7 @@ import pdb
 import time
 import argparse
 
+from env import State, Action, Piece, apply_action
 from models import PolicyNetwork, ValueNetwork
 
 # Constants (set these appropriately)
@@ -144,16 +145,16 @@ def MCTS(root_state, iterations=100):
     return best_child.action
 
 # Assume possible_movements() returns a list of movement vectors.
-# Can either move in any direction with unlimited movement, or we could limit it to 1
-# For now we limit it to 1
+# Can either move in any direction with unlimited movement, or we could limit it to 5
+# For now we limit it to 5
 def possible_moves(state):
+    return [(5, 0), (-5, 0), (0, 5), (0, -5)]
     # possible if within boxed bounds of piece
-    
 
 # Dummy placeholder functions (#TODO: have to implement this)
 def valid_actions(state):
     # Return a list of valid actions for the state
-    #return []
+    # return []
     """
     Generate a list of valid actions from the given state.
     - Valid actions: 
@@ -171,9 +172,12 @@ def valid_actions(state):
                 actions.append(action)
     return actions
 
-def apply_action(state, action):
-    # Return a new state after applying the action
-    return state
+def evaluate_visual(state, action):
+    return 1.0  # dummy value
+
+def update_assembly(assembly, action):
+    # Update the assembly matrix.
+    return assembly
 
 def is_terminal(state):
     # Define your terminal condition
@@ -230,20 +234,6 @@ def initialize_state():
     unplaced_pieces = load_puzzle_pieces()          # load puzzle pieces
     edge_info = initialize_edge_info()              # compute or load initial edge compatibility info
     return State(assembly, unplaced_pieces, edge_info)
-
-
-def apply_action(state, action):
-    """
-    Update the state with the given action.
-    This includes updating the puzzle assembly, removing the piece from unplaced list,
-    updating edge information, and accounting for time elapsed.
-    """
-    new_state = state.copy()
-    new_state.assembly = update_assembly(new_state.assembly, action)  # place the piece
-    new_state.unplaced_pieces.remove(action.piece_id)
-    new_state.update_edge_info()  # recalc edge compatibility after placement
-    new_state.time_elapsed += TIME_PER_MOVE  # increment time penalty counter
-    return new_state
 
 # --- PyGame Rendering ---
 #TODO implement rendering and pass to game_v2?
