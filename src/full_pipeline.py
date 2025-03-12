@@ -194,7 +194,7 @@ def convert_svg_to_png(input_svg, output_png):
 # Extract Puzzle Pieces Using Template Mask  #
 ###############################################
 
-def extract_puzzle_pieces(template_png, original_png, output_folder, threshold=200, dilate_edges=True):
+def extract_puzzle_pieces(template_png, original_png, output_folder, xn=15, yn=10, threshold=200, dilate_edges=True):
     """
     Uses the puzzle template PNG (white background, black edges) as a mask to extract each piece
     from the original image. The extracted pieces are saved in output_folder.
@@ -206,7 +206,20 @@ def extract_puzzle_pieces(template_png, original_png, output_folder, threshold=2
     if original is None:
         raise ValueError(f"Could not load original image: {original_png}")
     if template.shape[:2] != original.shape[:2]:
+        # change og shape to match template
         original = cv2.resize(original, (template.shape[1], template.shape[0]))
+        
+    # Compute a dynamic minimum area threshold.
+    h, w = template.shape[:2]
+    total_area = w * h
+    expected_piece_area = total_area / (xn * yn)
+    
+    min_area_factor = 0.3 #(only contours that cover at least 30% of the expected area will be kept.
+    min_area = expected_piece_area * min_area_factor
+    print(f"Template dimensions: {w}x{h}, total area: {total_area}, "
+        f"expected piece area: {expected_piece_area:.2f}, "
+        f"min_area threshold: {min_area:.2f}")
+
     ret, binary = cv2.threshold(template, threshold, 255, cv2.THRESH_BINARY)
     if dilate_edges:
         inv = 255 - binary
@@ -216,9 +229,15 @@ def extract_puzzle_pieces(template_png, original_png, output_folder, threshold=2
     else:
         separated = binary
     contours, hierarchy = cv2.findContours(separated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
     print(f"Found {len(contours)} pieces.")
     os.makedirs(output_folder, exist_ok=True)
     for idx, cnt in enumerate(contours):
+        area = cv2.contourArea(cnt)
+        if area < min_area:
+            print(f"Ignoring contour {idx} with area {area} (below min_area threshold)")
+            continue
+    
         piece_mask = np.zeros_like(template)
         cv2.drawContours(piece_mask, [cnt], -1, 255, thickness=-1)
         piece = cv2.bitwise_and(original, original, mask=piece_mask)
@@ -289,7 +308,7 @@ def main():
     
     # Step 3: Use the template PNG as a mask to extract pieces from the original image.
     extract_puzzle_pieces(args.output_template_png, args.original, args.output_pieces_folder,
-                            threshold=args.threshold, dilate_edges=not args.no_dilate)
+                            xn = args.xn, yn = args.yn, threshold=args.threshold, dilate_edges=not args.no_dilate)
     
 # Example run #
 # python3 full_pipeline.py original.png --xn 5 --yn 5 --seed 1234 --use_original_size
