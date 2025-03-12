@@ -5,7 +5,11 @@ import numpy
 
 from models import PolicyNetwork, ValueNetwork
 
-# Define dimensions (you need to set these based on your environment/state representation)
+#TODO
+
+
+#TODO
+# # Define dimensions (you need to set these based on your environment/state representation)
 state_dim = 100    # e.g., flattened state vector length
 action_dim = 10    # e.g., number of possible actions
 
@@ -21,6 +25,7 @@ optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parame
 # In practice, we might have more sophisticated target generation 
 # (for example, using the visit count distribution from MCTS as the target for the policy network).
 
+#TODO
 def compute_loss(state, action, reward, next_state, gamma=0.99):
     # Convert states to tensors (you need to implement convert_state_to_tensor)
     state_tensor = convert_state_to_tensor(state)
@@ -45,6 +50,7 @@ def compute_loss(state, action, reward, next_state, gamma=0.99):
     
     return policy_loss + value_loss
 
+#TODO
 class Trainer:
     def __init__(self, env, policy_model, value_model, optimizer, save_path):
         self.env = env

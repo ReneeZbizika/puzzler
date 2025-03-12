@@ -4,6 +4,8 @@ import pygame
 import random
 import time
 
+from mcts import MCTS # Import your MCTS function from your MCTS module
+
 # Initialize Pygame
 pygame.init()
 
@@ -153,7 +155,7 @@ def is_terminal(state):
             return False
     return True
 
-# ----- Placeholder for Agent Action Selection (e.g., via MCTS) -----
+# ----- Placeholder for Agent Action Selection (Dummy Random) -----
 def agent_select_action(state):
     """
     This function should use MCTS (or any agent logic) to choose the next action.
@@ -166,6 +168,18 @@ def agent_select_action(state):
     delta_y = random.randint(-20, 20)
     action = Action(piece_id, delta_x, delta_y)
     print("Agent selected:", action)
+    return action
+
+# ----- Agent Action Selection (via MCTS) -----
+def agent_select_action(state):
+    """
+    Use MCTS to select the next action given the current state.
+    This function calls the MCTS routine (which uses your policy/value networks) 
+    to search the tree and returns the best action.
+    """
+    # Run MCTS for a fixed number of iterations (e.g., 100)
+    action = MCTS(state, iterations=100)
+    print("Agent selected action:", action)
     return action
 
 # ----- Main Game Loop (Agent-Controlled Version) -----
@@ -204,7 +218,7 @@ def main():
         render_state(screen, state)
         
         # Render the elapsed time text on the screen
-        #TODO: currently just displays number of seconds (ex. 100) make it look nice
+        #TODO: currently just displays number of moves (ex. 100) make it look nice
         time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
         screen.blit(time_text, (10, 10))
         
