@@ -172,7 +172,9 @@ def agent_select_action(state):
 def main():
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Jigsaw Puzzle Game")
-    # Instead of interactive dragging, we load the pieces and create a State object.
+    font = pygame.font.SysFont(None, 36) # Initialize a font (using the default font, size 36)
+    
+    # Instead of interactive dragging, load the pieces and create a State object.
     pieces_dict = load_puzzle_pieces("pieces_img_2")
     if not pieces_dict:
         return
@@ -200,6 +202,13 @@ def main():
 
         # Render the current state
         render_state(screen, state)
+        
+        # Render the elapsed time text on the screen
+        #TODO: currently just displays number of seconds (ex. 100) make it look nice
+        time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
+        screen.blit(time_text, (10, 10))
+        
+        pygame.display.flip()
         
         # For visualization, wait a short period between actions (e.g., 500 ms)
         pygame.time.wait(500)
