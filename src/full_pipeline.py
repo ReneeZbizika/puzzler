@@ -293,7 +293,7 @@ def main():
     
 # Example run #
 # python3 full_pipeline.py original.png --xn 5 --yn 5 --seed 1234 --use_original_size
-# python3 full_pipeline.py imgs/img_2.pjg --xn 5 --yn 5 --seed 1234 --output_pieces_folder pieces_img_2 --use_original_size
+# python3 src/full_pipeline.py data/img_2.jpg --xn 5 --yn 5 --seed 1234 --output_pieces_folder pieces_img_2 --use_original_size
 
 
 if __name__ == "__main__":
