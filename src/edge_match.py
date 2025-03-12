@@ -4,6 +4,7 @@
 import numpy as np
 import cv2
 import math
+import scipy as sp
 
 # Helper functions
 def load_image(path): 
@@ -46,9 +47,7 @@ def segment_piece_black_bg(image_path):
     print(color_img.shape)
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     print("Loaded image shape:", image.shape)
-    #print(color_img[100, 100], color_img[200, 200])
 
-    
     # 3. Threshold for near-black background
     #    If background is near pure black, a low threshold like 10 or 15 can help.
     #    'THRESH_BINARY' will produce a white piece on black background.
@@ -122,7 +121,7 @@ def resample_edge(signature, num_points):
     t_new = np.linspace(0, 1, num_points, endpoint=False)
 
     # Create an interpolation function (using cubic interpolation here)
-    interpolator = interp1d(t_original, signature, axis=0, kind='cubic', fill_value="extrapolate")
+    interpolator = sp.interpolate.interp1d(t_original, signature, axis=0, kind='cubic', fill_value="extrapolate")
     resampled_signature = interpolator(t_new)
     return resampled_signature
 
@@ -209,18 +208,19 @@ def pipeline(image_A_path, image_B_path, num_resample_points=100, alpha=0.1):
 # Example usage
 #def main ():
 
-if __name__ == "__main__":
-    image_path = "pieces/piece_2.png"
+# DEBUGGING USE 
+"""if __name__ == "__main__":
+    image_path = "pieces_img_2/piece_4.png"
     contour_points, thresh_img = segment_piece_black_bg(image_path)
     
     print("Number of points in contour:", len(contour_points))
     # Optionally save the thresholded image for debugging
-    cv2.imwrite("thresh_debug.png", thresh_img)
+    cv2.imwrite("thresh_debug.png", thresh_img)"""
     
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     #main()
-    image_A_path = "pieces/piece_2.png"  # Path to puzzle piece A image. 
-    image_B_path = "pieces/piece_3.png" # Path to puzzle piece B image.
+    image_A_path = "pieces_img_2/piece_2.png"  # Path to puzzle piece A image. 
+    image_B_path = "pieces_img_2/piece_3.png" # Path to puzzle piece B image.
 
     score = pipeline(image_A_path, image_B_path, num_resample_points=100, alpha=0.1)
-    print("Edge Compatibility Score:", score)"""
+    print("Edge Compatibility Score:", score)
