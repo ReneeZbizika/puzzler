@@ -125,9 +125,6 @@ def resample_edge(signature, num_points):
     resampled_signature = interpolator(t_new)
     return resampled_signature
 
-# Replace with actual interpolation code using numpy/scipy
-
-
 # Define an edge compatibility score as a function of how “close” these signature vectors are
 # Compatability score between 2 edges
 # greater alpha = stricter 
@@ -216,7 +213,8 @@ def pipeline(image_A_path, image_B_path, num_resample_points=100, alpha=0.1):
     print("Number of points in contour:", len(contour_points))
     # Optionally save the thresholded image for debugging
     cv2.imwrite("thresh_debug.png", thresh_img)"""
-    
+
+# Main
 if __name__ == "__main__":
     #main()
     image_A_path = "pieces_img_2/piece_2.png"  # Path to puzzle piece A image. 
