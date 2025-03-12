@@ -3,8 +3,9 @@ import os
 import torch
 import numpy
 
-# --- State and Action Representations ---
+# import edge match functions
 
+# --- State and Action Representations ---
 class State:
     def __init__(self, assembly, unplaced_pieces, edge_info, time_elapsed=0):
         self.assembly = assembly            # a 2D matrix representing placed pieces
@@ -76,7 +77,7 @@ def initialize_state():
     """
     Set up the initial state of the puzzle.
     """
-    assembly = create_initial_assembly()          # e.g., a zero matrix with dimensions based on puzzle specs
+    assembly = create_initial_assembly()          # a zero matrix with dimensions based on puzzle specs
     unplaced_pieces = load_puzzle_pieces()          # load puzzle pieces
     edge_info = initialize_edge_info()              # compute or load initial edge compatibility info
     return State(assembly, unplaced_pieces, edge_info)

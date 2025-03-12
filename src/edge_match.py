@@ -1,5 +1,5 @@
 # Edge Compatability Algorithm 
-# inspired by https://www-users.cse.umn.edu/~olver/v_/puzzles.pdf
+# Inspired by https://www-users.cse.umn.edu/~olver/v_/puzzles.pdf
 
 import numpy as np
 import cv2
