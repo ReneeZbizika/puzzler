@@ -20,7 +20,18 @@ value_model = ValueNetwork(state_dim)
 
 # --- State and Action Representations ---
 class State:
-    def __init__(self, assembly, unplaced_pieces, edge_info, time_elapsed=0):
+    def __init__(self, pieces, assembly, unplaced_pieces, edge_info, time_elapsed=0):
+        # 1. Positions of pieces: a dictionary
+        #    piece_id -> location (x, y)
+        #    piece_id -> in_box (t/f)
+        #    piece_id -> in_box (t/f)
+        
+        self.pieces = {}
+        
+        # 2. Whether a piece is in the box (True/False) 
+        #    or if you want a more precise measure of "correctly placed"
+        #self.piece_in_box = {}
+        
         self.assembly = assembly            # a 2D matrix representing placed pieces
         self.unplaced_pieces = unplaced_pieces  # list or dict of available pieces
         self.edge_info = edge_info          # compatibility matrix or edge feature dict
@@ -154,6 +165,14 @@ def is_terminal(state):
 
 # --- PyGame Rendering ---
 #TODO implement rendering and pass to game_v2?
+
+def render_state(screen, state):
+    # Draw background, box, etc.
+    for pid, piece in state.pieces.items():
+        # If orientation is non-zero, rotate piece.image on the fly
+        screen.blit(piece.image, (piece.x, piece.y))
+    pygame.display.flip()
+    
 def render_state(state):
     """
     Use PyGame to render the current puzzle state.

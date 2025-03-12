@@ -38,6 +38,7 @@ def compute_loss(state, action, reward, next_state, gamma=0.99):
     
     # Value loss: Mean Squared Error between predicted value and bootstrapped value
     # For bootstrapping, we might use the immediate reward plus discounted next state value:
+    # For the value target, assume bootstrapping:
     with torch.no_grad():
         target_value = reward + gamma * value_model(next_state_tensor)
     value_loss = (predicted_value - target_value).pow(2).mean()
