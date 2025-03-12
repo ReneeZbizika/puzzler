@@ -1,6 +1,48 @@
 import os
 import torch
+import torch.optim as optim
 import numpy
+
+from models import PolicyNetwork, ValueNetwork
+
+# Define dimensions (you need to set these based on your environment/state representation)
+state_dim = 100    # e.g., flattened state vector length
+action_dim = 10    # e.g., number of possible actions
+
+# Create the models (initially untrained)
+policy_model = PolicyNetwork(state_dim, action_dim)
+value_model = ValueNetwork(state_dim)
+
+# Create an optimizer for both networks (here we use Adam)
+optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parameters()), lr=1e-3)
+
+
+# This is a conceptual example. 
+# In practice, we might have more sophisticated target generation 
+# (for example, using the visit count distribution from MCTS as the target for the policy network).
+
+def compute_loss(state, action, reward, next_state, gamma=0.99):
+    # Convert states to tensors (you need to implement convert_state_to_tensor)
+    state_tensor = convert_state_to_tensor(state)
+    next_state_tensor = convert_state_to_tensor(next_state)
+    
+    # Forward pass through the policy and value networks
+    predicted_policy = policy_model(state_tensor)  # shape: (1, action_dim)
+    predicted_value = value_model(state_tensor)      # shape: (1, 1)
+    
+    # Assume we obtain a target policy from MCTS visit counts (needs implementation)
+    target_policy = mcts_target_policy(state)  # e.g., a probability vector over actions
+    
+    # Policy loss: cross-entropy loss
+    policy_loss = -torch.sum(target_policy * torch.log(predicted_policy + 1e-8))
+    
+    # Value loss: Mean Squared Error between predicted value and bootstrapped value
+    # For bootstrapping, we might use the immediate reward plus discounted next state value:
+    with torch.no_grad():
+        target_value = reward + gamma * value_model(next_state_tensor)
+    value_loss = (predicted_value - target_value).pow(2).mean()
+    
+    return policy_loss + value_loss
 
 class Trainer:
     def __init__(self, env, policy_model, value_model, optimizer, save_path):
@@ -16,9 +58,13 @@ class Trainer:
             done = False
             while not done:
                 action = self.select_action(state)  # e.g., using MCTS
+                # action, target_policy = MCTS(state, iterations=100)  # Modify MCTS to return target_policy if needed
+        
                 next_state, reward, done, info = self.env.step(action)
                 self.optimize(state, action, reward, next_state)
+                
                 state = next_state
+                
             self.save_model(epoch)
             self.log_metrics(epoch)
 

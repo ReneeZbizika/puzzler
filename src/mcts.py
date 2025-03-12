@@ -2,6 +2,19 @@
 import os
 import torch
 import numpy
+import collections
+import random
+import math
+import pdb
+import time
+import argparse
+
+from models import PolicyNetwork, ValueNetwork
+
+# Create the models (initially untrained)
+policy_model = PolicyNetwork(state_dim, action_dim)
+value_model = ValueNetwork(state_dim)
+
 
 # import edge match functions
 
@@ -24,8 +37,30 @@ class State:
 class Action:
     def __init__(self, piece_id, movement_vector, layer_operation):
         self.piece_id = piece_id
-        self.movement_vector = movement_vector  # vector representing direction/offset
+        self.movement_vector = movement_vector  # vector representing displacement/offset
         # self.layer_operation = layer_operation  # bring forward or send back? 
+
+# --- Conversions ---
+def convert_state_to_tensor(state):
+    """
+    Convert your state (e.g., a combination of your assembly matrix, unplaced pieces, etc.)
+    into a flat tensor of size (1, state_dim).
+    """
+    # This is just an example: you must implement conversion appropriate for your state.
+    # Here we assume `state.assembly` is a 2D matrix, so we flatten it.
+    flat_state = state.assembly.flatten()
+    # Ensure it is a float tensor and add a batch dimension.
+    state_tensor = torch.tensor(flat_state, dtype=torch.float32).unsqueeze(0)
+    return state_tensor
+
+def action_to_index(action):
+    """
+    Convert an action (e.g., an instance of Action) to an index.
+    This mapping depends on how you enumerate your actions.
+    """
+    # For example, if Action.piece_id is a number from 0 to action_dim-1:
+    return action.piece_id  # You may need to adjust this mapping
+
 
 # --- Neural Network Functions (Using PyTorch) ---
 
@@ -118,7 +153,7 @@ def is_terminal(state):
     return (len(state.unplaced_pieces) == 0) or (other_terminal_condition())
 
 # --- PyGame Rendering ---
-
+#TODO implement rendering and pass to game_v2?
 def render_state(state):
     """
     Use PyGame to render the current puzzle state.
@@ -137,6 +172,7 @@ class Node:
         self.visits = 0         # Number of visits
         self.total_reward = 0   # Total reward accumulated
 
+#TODO implement PUCT
 def selection(node):
     """
     Traverse the tree starting at 'node' using a variant of PUCT until a leaf is reached.
