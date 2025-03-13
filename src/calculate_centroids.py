@@ -46,8 +46,35 @@ def get_puzzle_dimensions():
     # Default values if unable to read from file - based on the cottage puzzle image
     return 600, 400
 
+def load_current_positions():
+    """Load current positions from the JSON file saved by game_v2.py"""
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    json_path = os.path.join(project_root, "data", "current_positions.json")
+    
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, 'r') as f:
+                data = json.load(f)
+                print(f"Successfully loaded current positions from {json_path}")
+                return data["pieces"]
+        except Exception as e:
+            print(f"Error loading current positions: {e}")
+    
+    print("No current positions file found. Will calculate default positions.")
+    return None
+
 def calculate_centroids():
     """Calculate the centroids for each puzzle piece in the assembled state"""
+    # First, try to load current positions from file
+    current_positions = load_current_positions()
+    
+    if current_positions:
+        print(f"Using {len(current_positions)} actual piece positions from Pygame")
+        return current_positions
+    
+    # If no current positions, continue with the original calculation
+    print("Calculating default grid-based positions...")
+    
     # Get the project root directory
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pieces_path = os.path.join(project_root, "pieces_img_2")

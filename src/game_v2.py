@@ -2,6 +2,7 @@ import os
 import sys
 import pygame
 import random
+import json  # Add import for JSON handling
 
 # Initialize Pygame
 pygame.init()
@@ -110,6 +111,43 @@ def load_puzzle_pieces(pieces_folder):
     
     print(f"Successfully loaded {len(pieces)} pieces")
 
+# New function to save current piece positions
+def save_current_positions():
+    """Save the current positions of all puzzle pieces directly to puzzle_centroids.json"""
+    global pieces
+    
+    # Create a list to store piece data
+    piece_data = []
+    
+    # Get the project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    # Add each piece's current position
+    for i, piece in enumerate(pieces):
+        piece_data.append({
+            "id": f"piece_{piece.original_index}",
+            "centroid": {
+                "x": round(piece.rect.x + piece.image.get_width() / 2),
+                "y": round(piece.rect.y + piece.image.get_height() / 2)
+            }
+        })
+    
+    # Create the data structure for JSON
+    data = {"pieces": piece_data}
+    
+    # Ensure data directory exists
+    data_dir = os.path.join(project_root, "data")
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    
+    # Write directly to puzzle_centroids.json file
+    json_path = os.path.join(project_root, "data", "puzzle_centroids.json")
+    
+    with open(json_path, 'w') as f:
+        json.dump(data, f, indent=2)
+    
+    print(f"Successfully saved positions of {len(pieces)} pieces to {json_path}")
+
 def main():
     global selected_piece, dragging
     
@@ -133,6 +171,9 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                # Add keyboard shortcut to save positions (S key)
+                elif event.key == pygame.K_s:
+                    save_current_positions()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == 1:  # Left click
