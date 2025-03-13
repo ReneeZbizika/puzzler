@@ -7,6 +7,7 @@ import cairosvg
 import cv2
 import numpy as np
 from puzzle_generator import JigsawPuzzleGenerator
+import json
 
 ###############################
 # Convert SVG to PNG Function #
@@ -165,6 +166,19 @@ def main():
     # Step 4: Scale down the extracted pieces
     scale_puzzle_pieces(args.output_pieces_folder, args.scale_factor)
     
+    # Construct the command string using parser arguments.
+    # Flags like --no-dilate and --use_original_size are included if True.
+    command = (
+        f"python src/full_pipeline.py {args.original} "
+        f"--width {args.width} --height {args.height} --xn {args.xn} --yn {args.yn} --seed {args.seed} "
+        f"--tabsize {args.tabsize} --jitter {args.jitter} --radius {args.radius} "
+        f"--output_template_svg {args.output_template_svg} --output_template_png {args.output_template_png} "
+        f"--output_pieces_folder {args.output_pieces_folder} --threshold {args.threshold} "
+        f"{'--no-dilate ' if args.no_dilate else ''}"
+        f"{'--use_original_size ' if args.use_original_size else ''}"
+        f"--scale_factor {args.scale_factor}"
+    )
+    
     # Step 5: Save the image parameters to a text file
     save_image_parameters(
         args.original,
@@ -172,7 +186,8 @@ def main():
         original_height,
         args.scale_factor,
         args.xn,
-        args.yn
+        args.yn, 
+        comm=command
     )
     
     # Print the original and scaled dimensions
@@ -228,10 +243,11 @@ def scale_puzzle_pieces(pieces_folder, scale_factor):
     
     print(f"Finished scaling all puzzle pieces in {pieces_folder}")
 
+    """
 def save_image_parameters(original_image_path, width, height, scale_factor, xn, yn):
     """
-    Save image parameters to a text file in the params folder.
-    The file will be named <img_name>_params.txt
+    #Save image parameters to a text file in the params folder.
+    #The file will be named <img_name>_params.txt
     """
     # Create params folder if it doesn't exist
     params_folder = "params"
@@ -255,6 +271,69 @@ def save_image_parameters(original_image_path, width, height, scale_factor, xn, 
         f.write(f"Scale factor: {scale_factor}\n")
         f.write(f"Grid: {xn}x{yn}\n")
         f.write(f"Total pieces: {xn * yn}\n")
+    
+    print(f"Saved image parameters to {param_file_path}")
+    
+    """
+    
+def save_image_parameters(original_image_path, width, height, scale_factor, xn, yn, comm):
+    """
+    Save image parameters as JSON in the params folder.
+    The JSON file will be named <img_name>_params.json.
+    
+    Saved parameters include:
+      - Image: the path to the original image.
+      - Original dimensions: the width and height of the original image.
+      - Scaled dimensions: the dimensions of the image after scaling.
+      - Scale factor: the factor used to scale the original dimensions.
+      - Grid: the number of grid rows and columns (xn x yn).
+      - Total pieces: computed as xn * yn.
+      - BOX_WIDTH and BOX_HEIGHT: the dimensions of the puzzle's solution box.
+      - SCREEN_WIDTH and SCREEN_HEIGHT: overall screen dimensions computed with margins.
+      - Comm: the full command that was used, constructed from several parser arguments.
+    """
+    # Create params folder if it doesn't exist.
+    params_folder = "params"
+    os.makedirs(params_folder, exist_ok=True)
+    
+    # Extract the image name (without extension) from the path.
+    img_name = os.path.splitext(os.path.basename(original_image_path))[0]
+    
+    # Build the JSON file path.
+    param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
+    
+    # Calculate the scaled dimensions.
+    scaled_width = int(width * scale_factor)
+    scaled_height = int(height * scale_factor)
+    
+    # Define the solution box dimensions.
+    # Here, we assume the solution box matches the scaled image dimensions.
+    BOX_WIDTH = scaled_width
+    BOX_HEIGHT = scaled_height
+    
+    # Define screen dimensions based on the box dimensions plus margins.
+    margin = 50  # Adjust margin as needed.
+    SCREEN_WIDTH = BOX_WIDTH * 2 + margin
+    SCREEN_HEIGHT = BOX_HEIGHT + 2 * margin
+    
+    # Prepare the data dictionary.
+    data = {
+        "Image": original_image_path,
+        "Original dimensions": f"{width}x{height}",
+        "Scaled dimensions": f"{scaled_width}x{scaled_height}",
+        "Scale factor": scale_factor,
+        "Grid": f"{xn}x{yn}",
+        "Total pieces": xn * yn,
+        "BOX_WIDTH": BOX_WIDTH,
+        "BOX_HEIGHT": BOX_HEIGHT,
+        "SCREEN_WIDTH": SCREEN_WIDTH,
+        "SCREEN_HEIGHT": SCREEN_HEIGHT, 
+        "Command": comm
+    }
+    
+    # Save the data dictionary as JSON.
+    with open(param_file_path, 'w') as f:
+        json.dump(data, f, indent=4)
     
     print(f"Saved image parameters to {param_file_path}")
 
