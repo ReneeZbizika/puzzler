@@ -1,7 +1,0 @@
-Image: img_2.jpg
-Original dimensions: 2735x1974
-Scaled dimensions: 136x98
-Scale factor: 0.05
-Grid: 5x5
-Total pieces: 25
-Command: python src/full_pipeline.py data/img_2.jpg --xn 5 --yn 5 --seed 1234 --output_pieces_folder pieces_img_2 --use_original_size --scale_factor 0.05

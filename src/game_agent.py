@@ -6,12 +6,15 @@ import time
 import numpy as np
 
 from env import State, Action, Piece
-from env import apply_action, is_terminal, set_puzzle_dimensions
+from env import apply_action, is_terminal
+#set_puzzle_dimensions
 from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
 from mcts import MCTS # Import your MCTS function from your MCTS module
 
 # Initialize Pygame
 pygame.init()
+print(BOX_WIDTH, BOX_HEIGHT)
+print(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 # Constants
 BG_COLOR = (240, 240, 240)
@@ -32,7 +35,7 @@ def load_puzzle_pieces(pieces_folder):
     pieces_dict = {}
     
     # Load image parameters and set box dimensions
-    BOX_WIDTH, BOX_HEIGHT = set_puzzle_dimensions("img_2")
+    #BOX_WIDTH, BOX_HEIGHT = set_puzzle_dimensions("img_2")
     
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     pieces_path = os.path.join(project_root, pieces_folder)

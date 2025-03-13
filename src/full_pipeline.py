@@ -308,13 +308,13 @@ def save_image_parameters(original_image_path, width, height, scale_factor, xn, 
     
     # Define the solution box dimensions.
     # Here, we assume the solution box matches the scaled image dimensions.
-    BOX_WIDTH = scaled_width
-    BOX_HEIGHT = scaled_height
+    BOX_WIDTH = scaled_width * 3.8
+    BOX_HEIGHT = scaled_height * 3.8
     
     # Define screen dimensions based on the box dimensions plus margins.
-    margin = 50  # Adjust margin as needed.
-    SCREEN_WIDTH = BOX_WIDTH * 2 + margin
-    SCREEN_HEIGHT = BOX_HEIGHT + 2 * margin
+    margin = 100  # Adjust margin as needed.
+    SCREEN_WIDTH = BOX_WIDTH * 1.5 + 2 * margin
+    SCREEN_HEIGHT = BOX_HEIGHT * 1.5 + 2 * margin
     
     # Prepare the data dictionary.
     data = {
