@@ -26,7 +26,13 @@ class Piece:
     
     def copy(self):
         # Shallow copy is usually sufficient if image data is read-only.
-        return Piece(self.id, self.image, self.x, self.y, self.orientation)
+        #return Piece(self.id, self.image, self.x, self.y, self.orientation)
+        return Piece(self.id, self.image, self.x, self.y)
+    
+    # if using self.rect, make sure NOT to convert to torch tensor
+    
+    def draw(self, surface):
+        surface.blit(self.image, (self.x, self.y))
     
     """    
     def set_position(self, x, y):

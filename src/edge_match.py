@@ -104,7 +104,6 @@ def compute_signature(contour):
     signature = np.stack((curvature, curvature_derivative), axis=1)
     return signature
 
-
 # Compute a discrete “signature” that approximate the curvature and its derivative along the edge
 def resample_edge(signature, num_points): 
     """
@@ -282,6 +281,7 @@ def compute_compatibility_matrix(edge_signatures, alpha=1.0):
 
     return compatibility_matrix
 
+
 if __name__ == "__main__":
     folder_path = "pieces_img_2"
     
@@ -294,14 +294,104 @@ if __name__ == "__main__":
 
     print("Edge-to-Piece Mapping:", edge_to_piece_map)
     print("Edge Compatibility Matrix:\n", compatibility_matrix)
-
-# DEBUGGING USE 
-"""
-if __name__ == "__main__":
-    image_path = "pieces_img_2/piece_4.png"
-    contour_points, thresh_img = segment_piece_black_bg(image_path)
     
-    print("Number of points in contour:", len(contour_points))
-    # Optionally save the thresholded image for debugging
-    cv2.imwrite("thresh_debug.png", thresh_img)
-"""
+    
+    
+
+
+
+
+def get_piece_edges_and_scores(piece_id, edge_to_piece_map, compatibility_matrix):
+    """
+    Given a piece_id, find all its associated edges and their compatibility scores.
+    
+    Params:
+        piece_id (int): The piece ID to look up.
+        edge_to_piece_map (dict): Maps edge ID to (piece ID, edge index).
+        compatibility_matrix (np.array): The edge compatibility matrix.
+
+    Returns:
+        dict: {edge_id: { "edge_index": edge_index, "scores": { other_edge: score } } }
+    """
+    # Find all edge IDs that belong to the given piece_id
+    piece_edges = {edge_id: edge_idx for edge_id, (pid, edge_idx) in edge_to_piece_map.items() if pid == piece_id}
+
+    # Store scores for each edge
+    edge_scores = {}
+    for edge_id in piece_edges:
+        scores = {other_edge: compatibility_matrix[edge_id, other_edge] for other_edge in range(len(compatibility_matrix))}
+        edge_scores[edge_id] = {"edge_index": piece_edges[edge_id], "scores": scores}
+
+    return edge_scores
+
+# Example usage:
+piece_id_to_search = 3  # Change this to the piece ID you want to search for
+edges_and_scores = get_piece_edges_and_scores(piece_id_to_search, edge_to_piece_map, compatibility_matrix)
+
+# Print results
+for edge_id, data in edges_and_scores.items():
+    print(f"Edge {edge_id} (Edge Index {data['edge_index']}) has compatibility scores:")
+    sorted_scores = sorted(data["scores"].items(), key=lambda x: -x[1])[:5]  # Show top 5 matches
+    for other_edge, score in sorted_scores:
+        print(f"  → Edge {other_edge}: Score {score:.4f}")
+    print()
+    
+    
+def are_edges_adjacent(assembly_state, piece_1, edge_idx_1, piece_2, edge_idx_2):
+    """
+    Checks if two edges belong to adjacent pieces in the current assembly.
+    
+    Params:
+        assembly_state (dict): Maps piece_id to its (x, y, rotation).
+        piece_1, piece_2 (int): IDs of two pieces.
+        edge_idx_1, edge_idx_2 (int): Edge indices (0=Top, 1=Right, 2=Bottom, 3=Left).
+
+    Returns:
+        bool: True if the edges are adjacent.
+    """
+    if piece_1 not in assembly_state or piece_2 not in assembly_state:
+        return False  # One of the pieces is not placed
+
+    x1, y1, rotation1 = assembly_state[piece_1]
+    x2, y2, rotation2 = assembly_state[piece_2]
+
+    # Define adjacency rules based on (x, y) positions
+    adjacency_rules = {
+        (0, 2): (0, -1),  # Top (0) ↔ Bottom (2) → piece_2 is above piece_1
+        (1, 3): (1, 0),   # Right (1) ↔ Left (3) → piece_2 is to the right
+        (2, 0): (0, 1),   # Bottom (2) ↔ Top (0) → piece_2 is below
+        (3, 1): (-1, 0)   # Left (3) ↔ Right (1) → piece_2 is to the left
+    }
+
+    if (edge_idx_1, edge_idx_2) in adjacency_rules:
+        dx, dy = adjacency_rules[(edge_idx_1, edge_idx_2)]
+        return (x2 == x1 + dx) and (y2 == y1 + dy)
+
+    return False
+
+
+def evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility):
+    """
+    Evaluates the overall edge compatibility of the current puzzle assembly.
+
+    Params:
+        assembly_state (dict): Maps piece_id to its placement info (position, orientation, etc.).
+        edge_to_piece_map (dict): Maps edge ID to (piece ID, edge index).
+        edge_compatibility (np.array): Precomputed compatibility matrix for edges.
+
+    Returns:
+        float: Overall compatibility score of the assembled pieces.
+    """
+    total_score = 0.0
+    num_connections = 0
+
+    for edge_id_1, (piece_1, edge_idx_1) in edge_to_piece_map.items():
+        for edge_id_2, (piece_2, edge_idx_2) in edge_to_piece_map.items():
+            if piece_1 != piece_2:  # Avoid self-matching
+                if are_edges_adjacent(assembly_state, piece_1, edge_idx_1, piece_2, edge_idx_2):
+                    # Get compatibility score from matrix
+                    score = edge_compatibility[edge_id_1, edge_id_2]
+                    total_score += score
+                    num_connections += 1
+
+    return total_score / max(num_connections, 1)  # Avoid division by zero

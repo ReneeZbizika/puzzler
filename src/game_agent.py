@@ -24,62 +24,6 @@ BOX_Y = 50
 BOX_WIDTH = 600  
 BOX_HEIGHT = 700
 
-# ----- Piece Class -----
-"""
-class Piece:
-    def __init__(self, piece_id, image, x, y):
-        self.id = piece_id
-        self.image = image
-        self.x = x
-        self.y = y
-        self.rect = pygame.Rect(x, y, image.get_width(), image.get_height())
-
-    def update_position(self, dx, dy):
-        self.x += dx
-        self.y += dy
-        self.rect.x = self.x
-        self.rect.y = self.y
-
-    def set_position(self, x, y):
-        self.x = x
-        self.y = y
-        self.rect.x = x
-        self.rect.y = y
-
-    def draw(self, surface):
-        surface.blit(self.image, (self.x, self.y))
-
-# ----- State Class -----
-class State:
-    def __init__(self, pieces):
-        # pieces: dictionary mapping piece_id -> Piece object
-        self.pieces = pieces  # all puzzle pieces
-        self.time_elapsed = 0  # can track time or steps
-
-    def copy(self):
-        # Create a shallow copy of the state (deep copy each Piece if needed)
-        new_pieces = {}
-        for pid, piece in self.pieces.items():
-            # Assuming image can be shared; copy positions and rects
-            new_piece = Piece(piece.id, piece.image, piece.x, piece.y)
-            new_pieces[pid] = new_piece
-        new_state = State(new_pieces)
-        new_state.time_elapsed = self.time_elapsed
-        return new_state
-"""
-
-# ----- Action Class -----
-"""
-    class Action:
-    def __init__(self, piece_id, delta_x, delta_y):
-        self.piece_id = piece_id
-        self.delta_x = delta_x
-        self.delta_y = delta_y
-
-    def __repr__(self):
-        return f"Action(piece_id={self.piece_id}, dx={self.delta_x}, dy={self.delta_y})
-"""
-
 # ----- Helper Functions for Loading Pieces -----
 def set_puzzle_dimensions(image_name):    
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -146,11 +90,13 @@ def is_terminal(state):
     Define a terminal condition. For example, when all pieces are
     inside the puzzle box (you can check if their positions lie within BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT).
     """
+    # piece.rect.width , iece.rect.height
     for piece in state.pieces.values():
-        if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.rect.width and 
-                BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.rect.height):
+        if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.image.get_width() and 
+                BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.image.get_height()):
             return False
     return True
+
 
 # ----- [DUMMY] Agent Action Selection -----
 def dummy_agent_select_action(state):
@@ -198,7 +144,7 @@ def main():
     
     #TODO update edge_info using edge_match.py
     # Start with an empty edge info dictionary (or load your specific edge data)
-    # edge_info = {}
+    edge_info = {}
     
     # Create the State object using the unified State class from env.py
     state = State(pieces_dict, assembly, unplaced_pieces, edge_info)

@@ -34,6 +34,7 @@ def convert_state_to_tensor(state):
     Convert your state into a flat tensor of size (1, state_dim).
     """
      # Example: assume state has a list of piece positions stored in state.assembly (a 2D NumPy array)
+     # only grab numerical stuff
     flat_state = state.assembly.flatten() 
     # Ensure it is a float tensor and add a batch dimension.
     state_tensor = torch.tensor(flat_state, dtype=torch.float32).unsqueeze(0)
