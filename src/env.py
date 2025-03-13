@@ -1,5 +1,7 @@
 import copy
 import numpy as np
+import os
+
 
 
 # --- Piece Class ---
@@ -122,4 +124,136 @@ def apply_action(state, action):    #i.e, Transitions
     new_state.update_edge_info()
     new_state.time_elapsed += 1  # or whatever time increment you use
     return new_state
+
+
+# ----- Helper Functions for Game State (W/o Render) -----
+def set_puzzle_dimensions(image_name):    
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    param_file = os.path.join(project_root, "params", f"{image_name}_params.txt")
+    with open(param_file, 'r') as f:
+        for line in f:
+            if line.startswith("Scaled dimensions:"):
+                dims = line.strip().split(': ')[1]
+                width, height = dims.split('x')
+                return int(width)*3.8, int(height)*3.8
+
+# WHy is 3.8 for scaled dims?
+def parse_params_file(image_name):
+    """
+    Reads the parameter file for the given image and extracts:
+      - scaled_dimensions as a tuple (width, height)
+      - grid as a tuple (rows, columns)
+      - total_pieces as an integer
+    """
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    param_file = os.path.join(project_root, "params", f"{image_name}_params.txt")
+    
+    scaled_dimensions = None
+    grid = None
+    total_pieces = None
+
+    with open(param_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("Scaled dimensions:"):
+                dims = line.split(': ')[1]      # "136x98"
+                width, height = dims.split('x')
+                scaled_dimensions = (int(width) * 3.8, int(height) * 3.8)
+            elif line.startswith("Grid:"):
+                grid_str = line.split(': ')[1]    # "5x5"
+                rows, cols = grid_str.split('x')
+                grid = (int(rows), int(cols))
+            elif line.startswith("Total pieces:"):
+                total_pieces = int(line.split(': ')[1])
+    
+    return scaled_dimensions, grid, total_pieces
+
+#TODO: pass to game_agent instead of hardcoding
+image_name = "img_2"
+puzzle_width, puzzle_height = set_puzzle_dimensions(image_name)  # example dimensions in pixels
+
+scaled_dimensions, grid, total_pieces = parse_params_file(image_name)
+puzzle_width, puzzle_height = scaled_dimensions[0], scaled_dimensions[1]
+
+# Define margins
+margin_x, margin_y = 100, 100
+
+# Set screen dimensions accordingly
+SCREEN_WIDTH = int(puzzle_width) * 1.5 + 2 * margin_x
+SCREEN_HEIGHT = int(puzzle_height) * 1.5 + 2 * margin_y
+
+# The solution box is exactly the puzzle dimensions
+BOX_WIDTH = puzzle_width
+BOX_HEIGHT = puzzle_height
+
+# Center the solution box on the screen
+BOX_X = (SCREEN_WIDTH - BOX_WIDTH) // 2
+BOX_Y = (SCREEN_HEIGHT - BOX_HEIGHT) // 2
+
+num_rows = grid[0]
+num_cols = grid[1]
+cell_width = BOX_WIDTH / num_cols
+cell_height = BOX_HEIGHT / num_rows
+
+
+# Dummy placeholder functions (#TODO: have to implement this)
+#TODO
+def possible_moves(state):
+    """
+    Return candidate moves as offsets. For example, moves that shift a piece by one cell in any direction.
+    This includes cardinal and diagonal moves.
+    """
+    # Offsets in terms of grid cells
+    grid_moves = [(-1, 0), (1, 0), (0, -1), (0, 1),  # cardinal directions
+                  (-1, -1), (1, 1), (-1, 1), (1, -1)] # diagonal moves
+
+    # Convert cell moves to pixel moves:
+    candidate_moves = [(int(dx * cell_width), int(dy * cell_height)) for dx, dy in grid_moves]
+    return candidate_moves
+
+def valid_actions(state):
+    # Return a list of valid actions for the state
+    # return []
+    """
+    Generate a list of valid actions from the given state.
+    - Valid actions: 
+    - Puzzle pieces are UNPLACED
+    - Puzzle action is within frame
+    Perform early pruning based on edge compatibility.
+    """
+    actions = []
+    for piece in state.unplaced_pieces:
+        for movement in possible_moves():       # e.g., candidate movement vectors
+            #for layer_op in possible_layer_ops():    # e.g., operations affecting layering
+            #   action = Action(piece.id, movement, layer_op)
+            action = Action(piece.id, movement)
+            # Lightweight early pruning: only add if compatibility passes a threshold
+            # SKIP FOR NOW - dont want actor to have priviledged info about edges
+            # if compute_edge_compatibility(state, action) >= COMPATIBILITY_THRESHOLD:
+            actions.append(action)
+    return actions
+
+# Dummy placeholder functions (#TODO: have to implement this)
+#TODO: change so that it is not dependant on the PyGame functions
+def is_terminal(state):
+    """
+    Define a terminal condition. For example, when all pieces are
+    inside the puzzle box (you can check if their positions lie within BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT).
+    """
+    # piece.rect.width , piece.rect.height
+    """
+    for piece in state.pieces.values():
+        if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.image.get_width() and 
+                BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.image.get_height()):
+            return False
+    return True
+    """
+    # naive solution, move all of them once
+    if state.unplaced_pieces == []:
+        return True
+    else:
+        return False
+    
+
+
 

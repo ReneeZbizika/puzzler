@@ -9,7 +9,7 @@ import pdb
 import time
 import argparse
 
-from env import State, Action, Piece, apply_action
+from env import State, Action, Piece, apply_action, valid_actions, is_terminal
 from models import PolicyNetwork, ValueNetwork
 
 # Constants (set these appropriately)
@@ -106,7 +106,9 @@ def expansion(node):
 def simulation(state, max_depth=MAX_SIM_DEPTH):
     """
     Simulate the outcome starting from 'state' until a terminal state or depth cutoff.
-    Accumulate intermediate rewards, and optionally use the value network at the end.
+    At each step, use the policy network to sample an action (the actor) and compute the intermediate reward.
+    If the simulation doesn't reach a terminal state, use the value network (the critic)
+    to approximate future rewards.
     """
     cumulative_reward = 0
     current_state = state
@@ -115,13 +117,37 @@ def simulation(state, max_depth=MAX_SIM_DEPTH):
         actions = valid_actions(current_state)
         if not actions:
             break
-        # You can sample randomly or use a heuristic (e.g., guided by policy network)
-        action = random.choice(actions)
-        reward = compute_intermediate_reward(current_state, action, TIME_PER_MOVE)
-        cumulative_reward += reward
-        current_state = apply_action(current_state, action)
+        
+        # Get the probability distribution from the policy network.
+        policy_probs = policy_network_forward(current_state)  # Shape: (1, action_dim)
+        
+        # For each valid action, map it to an index (make sure your action_to_index function is consistent).
+        valid_action_probs = []
+        for action in actions:
+            idx = action_to_index(action)
+            # Get the probability from the network. We assume the network outputs probabilities in a tensor.
+            valid_action_probs.append(policy_probs[0, idx].item())
+            
+        # Normalize the probabilities (in case they don't sum exactly to 1).
+        total_prob = sum(valid_action_probs)
+        if total_prob == 0:
+            # Fallback: if the network gives zero probabilities, choose randomly.
+            chosen_action = random.choice(actions)
+        else:
+            normalized_probs = [p / total_prob for p in valid_action_probs]
+            # Sample an action using the normalized probabilities.
+            chosen_action = random.choices(actions, weights=normalized_probs, k=1)[0]
+
+        # Compute the immediate (intermediate) reward for the chosen action.
+        intermediate_reward = compute_intermediate_reward(current_state, chosen_action, TIME_PER_MOVE)
+        cumulative_reward += intermediate_reward
+        
+        # Update the state.
+        current_state = apply_action(current_state, chosen_action)
         depth += 1
+        
     # If simulation ended before reaching a terminal state, boost using the value network
+    # approximate future rewards that the simulation didn’t cover.
     if not is_terminal(current_state):
         cumulative_reward += value_network_forward(current_state)
     return cumulative_reward
@@ -135,15 +161,27 @@ def backpropagation(node, reward):
         node.total_reward += reward
         node = node.parent
         
-def MCTS(root_state, iterations=100):
+        
+#TODO edit render_fn = render_state, edit redit_state from mcts.py or game_agent.py (should be only one function, unite)
+def MCTS(root_state, iterations=100, render=False, render_fn=None):
     root = Node(root_state)
-    for _ in range(iterations):
+    for i in range(iterations):
         leaf = selection(root)
         expanded = expansion(leaf)
         reward = simulation(expanded.state)
         backpropagation(expanded, reward)
+        
+        # If rendering is enabled, call the rendering function with the current state.
+        if render and render_fn is not None:
+            render_fn(root_state)  # or pass expanded.state as desired.
     best_child = max(root.children, key=lambda child: child.visits)
     return best_child.action
+
+# Then, in your Train.py (or wherever you call MCTS), 
+# you can pass render=False for training runs, and render=True 
+# (plus a proper rendering function, e.g. render_state(screen, state, font)) 
+# when you want to visualize.
+
 
 # Assume possible_movements() returns a list of movement vectors.
 # Can either move in any direction with unlimited movement, or we could limit it to 5
@@ -152,65 +190,12 @@ def possible_moves(state):
     return [(5, 0), (-5, 0), (0, 5), (0, -5)]
     # possible if within boxed bounds of piece
 
-# Dummy placeholder functions (#TODO: have to implement this)
-def valid_actions(state):
-    # Return a list of valid actions for the state
-    # return []
-    """
-    Generate a list of valid actions from the given state.
-    - Valid actions: 
-    - Puzzle pieces are UNPLACED
-    - Puzzle action is within frame
-    Perform early pruning based on edge compatibility.
-    """
-    actions = []
-    for piece in state.unplaced_pieces:
-        for movement in possible_moves():       # e.g., candidate movement vectors
-            for layer_op in possible_layer_ops():    # e.g., operations affecting layering
-                action = Action(piece.id, movement, layer_op)
-                # Lightweight early pruning: only add if compatibility passes a threshold
-                # if compute_edge_compatibility(state, action) >= COMPATIBILITY_THRESHOLD:
-                actions.append(action)
-    return actions
-
 def evaluate_visual(state, action):
     return 1.0  # dummy value
 
 def update_assembly(assembly, action):
     # Update the assembly matrix.
     return assembly
-
-def is_terminal(state):
-    # Define your terminal condition
-    return False
-
-def compute_intermediate_reward(state, action, time_penalty):
-    # Compute a reward for taking an action in the state
-    return 0
-    def __init__(self, piece_id, movement_vector, layer_operation):
-        self.piece_id = piece_id
-        self.movement_vector = movement_vector  # vector representing displacement/offset
-        # self.layer_operation = layer_operation  # bring forward or send back? 
-
-# --- Conversions ---
-def action_to_index(action):
-    """
-    Convert an action (e.g., an instance of Action) to an index.
-    This mapping depends on how you enumerate your actions.
-    """
-    # For example, if Action.piece_id is a number from 0 to action_dim-1:
-    return action.piece_id  # You may need to adjust this mapping
-
-# --- Reward and Evaluation Functions ---
-def compute_edge_compatibility(state, action):
-    """
-    Evaluate how well the edges of the piece selected by 'action'
-    will match with its neighbors in the current 'state'.
-    Returns a score (e.g., between 0 and 1).
-    """
-    # Could use differential invariant signatures, compatibility matrix, etc.
-    score = evaluate_edges(state, action)  # user-defined evaluation function
-    return score
 
 def compute_intermediate_reward(state, action, time_penalty):
     """
@@ -225,6 +210,57 @@ def compute_intermediate_reward(state, action, time_penalty):
               time_penalty)
     return reward
 
+# --- Conversions ---
+#TODO allow for unfixed candidate moves
+def action_to_index(action):
+    """
+    Map an action (which contains a piece_id and a movement vector (dx, dy))
+    to a unique index in the policy network's output.
+    
+    We assume that the allowed movement vectors (candidate moves) are fixed.
+    For example:
+        candidate_moves = [(-5, 0), (-4, 0), (-3, 0), 
+                           (0, -5), (0, -4), (0, -3),
+                           (3, 0),  (4, 0),  (5, 0),
+                           (0, 3),  (0, 4),  (0, 5)]
+    
+    If there are N candidate moves per piece, and the total number of pieces is P,
+    then the policy network should output a vector of length P * N.
+    
+    The action index is computed as:
+       index = (piece_id - 1) * len(candidate_moves) + move_index
+    """
+    candidate_moves = [(-5, 0), (-4, 0), (-3, 0), 
+                       (0, -5), (0, -4), (0, -3),
+                       (3, 0),  (4, 0),  (5, 0),
+                       (0, 3),  (0, 4),  (0, 5)]
+    
+    try:
+        move_index = candidate_moves.index((action.dx, action.dy))
+    except ValueError:
+        raise ValueError(f"Movement vector {(action.dx, action.dy)} is not in the candidate moves list!")
+    
+    # Convert piece_id (assumed to be 1-indexed) to zero-based index.
+    piece_index = action.piece_id - 1
+    
+    # Calculate the overall index.
+    index = piece_index * len(candidate_moves) + move_index
+    return index
+
+
+#TODO evaluate edges function
+# --- Reward and Evaluation Functions ---
+def compute_edge_compatibility(state, action):
+    """
+    Evaluate how well the edges of the piece selected by 'action'
+    will match with its neighbors in the current 'state'.
+    Returns a score (e.g., between 0 and 1).
+    """
+    # Could use differential invariant signatures, compatibility matrix, etc.
+    score = evaluate_edges(state, action)  # user-defined evaluation function
+    return score
+
+
 # --- Environment Functions (Can be wrapped with Gymnasium) ---
 
 def initialize_state():
@@ -237,48 +273,16 @@ def initialize_state():
     return State(assembly, unplaced_pieces, edge_info)
 
 # --- PyGame Rendering ---
-#TODO implement rendering and pass to game_v2?
-
+#TODO implement rendering and pass to game_v2
+"""
 def render_state(screen, state):
     # Draw background, box, etc.
     for pid, piece in state.pieces.items():
         # If orientation is non-zero, rotate piece.image on the fly
         screen.blit(piece.image, (piece.x, piece.y))
     pygame.display.flip()
-    
-def render_state(state):
-    """
-    Use PyGame to render the current puzzle state.
-    """
-    # Example: draw the assembly grid, pieces, and maybe highlight potential moves
-    pygame_render(state.assembly, state.unplaced_pieces, state.edge_info)
-
-
-
-# --- Main Loop Integration with PyGame Rendering and (Optionally) Gymnasium ---
-
-def main():
-    # If using Gymnasium, you can wrap your environment; otherwise, use your own setup.
-    state = initialize_state()
-    # Optionally, initialize PyGame here for rendering.
-    init_pygame()
-
-    for episode in range(NUM_EPISODES):
-        # Render current state
-        render_state(state)
-        # Run MCTS to select the next action
-        action = MCTS(state, iterations=MCTS_ITERATIONS)
-        # Apply the action to update the state
-        state = apply_action(state, action)
-        # Optionally, update the PyGame window and handle events
-        pygame_event_handler()
-        if is_terminal(state):
-            break
-
-    # Final render and clean up
-    render_state(state)
-    pygame.quit()
+"""
 
 # Entry point
-if __name__ == "__main__":
-    main()
+#if __name__ == "__main__":
+#    main()

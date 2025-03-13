@@ -27,7 +27,5 @@ class ValueNetwork(nn.Module):
         return self.fc(x)
     
 
-import torch
-
 
 

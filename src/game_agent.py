@@ -5,35 +5,25 @@ import random
 import time
 import numpy as np
 
-from env import State, Action, Piece, apply_action
+from env import State, Action, Piece, apply_action, is_terminal, set_puzzle_dimensions, BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
+#BOX_WIDTH, BOX_HEIGHT
 from mcts import MCTS # Import your MCTS function from your MCTS module
-# from mcts import apply_action as mcts_apply_action, is_terminal
 
 # Initialize Pygame
 pygame.init()
 
 # Constants
-SCREEN_WIDTH = 1200
-SCREEN_HEIGHT = 800
 BG_COLOR = (240, 240, 240)
 BOARD_COLOR = (180, 180, 180)
 BOX_X = 50
 BOX_Y = 50
 
-# Global variable for board dimensions (set later)
-BOX_WIDTH = 600  
-BOX_HEIGHT = 700
+#TODO - use img_path and pieces_path instead of hardcoding 
+# Image Filepath 
+img_path = "img_2"
+pieces_path = f"pieces_{img_path}"
 
 # ----- Helper Functions for Loading Pieces -----
-def set_puzzle_dimensions(image_name):    
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    param_file = os.path.join(project_root, "params", f"{image_name}_params.txt")
-    with open(param_file, 'r') as f:
-        for line in f:
-            if line.startswith("Scaled dimensions:"):
-                dims = line.strip().split(': ')[1]
-                width, height = dims.split('x')
-                return int(width)*3.8, int(height)*3.8
 
 def load_puzzle_pieces(pieces_folder):
     """Load puzzle pieces from the specified folder with random initial positions."""
@@ -91,30 +81,17 @@ def render_state(screen, state):
     pygame.display.flip()
 
 
-def is_terminal(state):
-    """
-    Define a terminal condition. For example, when all pieces are
-    inside the puzzle box (you can check if their positions lie within BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT).
-    """
-    # piece.rect.width , iece.rect.height
-    for piece in state.pieces.values():
-        if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.image.get_width() and 
-                BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.image.get_height()):
-            return False
-    return True
-
-
 # ----- [DUMMY] Agent Action Selection -----
 def dummy_agent_select_action(state):
     """
     This function should use MCTS (or any agent logic) to choose the next action.
-    For now, we provide a dummy version that randomly moves one piece.
+    For now, we provide a dummy verrender_stateon that randomly moves one piece.
     """
     # Pick a random piece from state
     piece_id = random.choice(list(state.pieces.keys()))
     # For example, move by a small random delta (you can define your own action space)
-    delta_x = random.randint(-20, 20)
-    delta_y = random.randint(-20, 20)
+    delta_x = random.randint(-30, 30)
+    delta_y = random.randint(-30, 30)
     action = Action(piece_id, delta_x, delta_y)
     print("Agent selected:", action)
     return action
@@ -128,6 +105,7 @@ def agent_select_action(state):
     """
     # Run MCTS for a fixed number of iterations (e.g., 100)
     action = MCTS(state, iterations=100)
+    # MCTS(state, iterations=100, render=render_on, render_fn=lambda s: render_state(screen, s))
     print("Agent selected action:", action)
     return action
 
@@ -157,12 +135,15 @@ def main():
     
     clock = pygame.time.Clock()
     running = True
+    
+    # For training, set render_on to False for speed; set to True if you want visualization.
+    render_on = True
 
     while running:
         # Instead of handling mouse events, let the agent choose an action
         if not is_terminal(state):
             action = dummy_agent_select_action(state) #switch between dummy and real
-            #action = dummy_agent_select_action(state)
+            #action = agent_select_action(state)
             state = apply_action(state, action)
         else:
             print("Terminal state reached!")
@@ -175,16 +156,15 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-
-        # Render the current state
-        render_state(screen, state)
-        
-        # Render the elapsed time text on the screen
-        #TODO: currently just displays number of seconds (ex. 100) make it look nice
-        time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
-        screen.blit(time_text, (10, 10))
-        
-        pygame.display.flip()
+                    
+        if render_on:
+            render_state(screen, state)
+            
+            #TODO: currently just displays number of seconds (ex. 100) make it look nice
+            time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
+            screen.blit(time_text, (10, 10))
+            pygame.display.flip()
+            pygame.time.wait(500)
         
         # For visualization, wait a short period between actions (e.g., 500 ms)
         pygame.time.wait(500)
