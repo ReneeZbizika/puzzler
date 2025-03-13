@@ -9,7 +9,7 @@ import pdb
 import time
 import argparse
 
-from env import State, Action, Piece, apply_action, valid_actions, is_terminal
+from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves
 from models import PolicyNetwork, ValueNetwork
 
 # Constants (set these appropriately)
@@ -186,9 +186,6 @@ def MCTS(root_state, iterations=100, render=False, render_fn=None):
 # Assume possible_movements() returns a list of movement vectors.
 # Can either move in any direction with unlimited movement, or we could limit it to 5
 # For now we limit it to 5
-def possible_moves(state):
-    return [(5, 0), (-5, 0), (0, 5), (0, -5)]
-    # possible if within boxed bounds of piece
 
 def evaluate_visual(state, action):
     return 1.0  # dummy value
@@ -197,18 +194,45 @@ def update_assembly(assembly, action):
     # Update the assembly matrix.
     return assembly
 
-def compute_intermediate_reward(state, action, time_penalty):
+#TODO add params for visual checking
+#TODO add params for just basic assembly
+def compute_intermediate_reward(state, action, time_penalty, mode='visual'):
     """
     Compute the immediate reward for taking an action.
-    Combines edge compatibility, overall visual/structural coherence,
-    and subtracts a time penalty.
+    Two possible reward schemes:
+      1. 'visual': A weighted combination of edge compatibility and visual evaluation.
+      2. 'assembly': A simpler reward that checks if the piece is in the correct location.
+      
+    Parameters:
+      - state: The current state.
+      - action: The action taken.
+      - time_penalty: A penalty for time or moves.
+      - mode: 'visual' or 'assembly'.
+      
+    Returns:
+      A reward value (float).
     """
-    compatibility_score = compute_edge_compatibility(state, action)
-    visual_score = evaluate_visual(state, action)  # user-defined visual evaluation
-    reward = (weight_edge * compatibility_score +
-              weight_visual * visual_score -
-              time_penalty)
-    return reward
+    if mode == 'visual':
+        compatibility_score = compute_edge_compatibility(state, action)
+        visual_score = evaluate_visual(state, action)
+        # weight_edge and weight_visual should be defined globally or passed as parameters
+        reward = (weight_edge * compatibility_score +
+                  weight_visual * visual_score -
+                  time_penalty)
+        return reward
+    elif mode == 'assembly':
+        # For example, check if the piece lands in its correct cell.
+        # You might have a helper function that returns True/False if piece is correctly assembled.
+        if is_piece_correctly_assembled(state, action.piece_id):
+            # Give a positive reward if correctly assembled (you can tune this value)
+            reward = 1.0 - time_penalty
+        else:
+            # Otherwise, provide a negative or zero reward (penalize the time penalty)
+            reward = -time_penalty
+        return reward
+    else:
+        raise ValueError("Invalid mode. Choose 'visual' or 'assembly'.")
+
 
 # --- Conversions ---
 #TODO allow for unfixed candidate moves
@@ -262,7 +286,6 @@ def compute_edge_compatibility(state, action):
 
 
 # --- Environment Functions (Can be wrapped with Gymnasium) ---
-
 def initialize_state():
     """
     Set up the initial state of the puzzle.

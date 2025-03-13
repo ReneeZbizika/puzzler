@@ -5,8 +5,9 @@ import random
 import time
 import numpy as np
 
-from env import State, Action, Piece, apply_action, is_terminal, set_puzzle_dimensions, BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
-#BOX_WIDTH, BOX_HEIGHT
+from env import State, Action, Piece
+from env import apply_action, is_terminal, set_puzzle_dimensions
+from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
 from mcts import MCTS # Import your MCTS function from your MCTS module
 
 # Initialize Pygame
@@ -24,7 +25,6 @@ img_path = "img_2"
 pieces_path = f"pieces_{img_path}"
 
 # ----- Helper Functions for Loading Pieces -----
-
 def load_puzzle_pieces(pieces_folder):
     """Load puzzle pieces from the specified folder with random initial positions."""
     global BOX_WIDTH, BOX_HEIGHT

@@ -3,7 +3,6 @@ import numpy as np
 import os
 
 
-
 # --- Piece Class ---
 class Piece:
     def __init__(self, piece_id, image, x, y):
@@ -125,19 +124,8 @@ def apply_action(state, action):    #i.e, Transitions
     new_state.time_elapsed += 1  # or whatever time increment you use
     return new_state
 
-
 # ----- Helper Functions for Game State (W/o Render) -----
-def set_puzzle_dimensions(image_name):    
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    param_file = os.path.join(project_root, "params", f"{image_name}_params.txt")
-    with open(param_file, 'r') as f:
-        for line in f:
-            if line.startswith("Scaled dimensions:"):
-                dims = line.strip().split(': ')[1]
-                width, height = dims.split('x')
-                return int(width)*3.8, int(height)*3.8
-
-# WHy is 3.8 for scaled dims?
+# Why is 3.8 for scaled dims?
 def parse_params_file(image_name):
     """
     Reads the parameter file for the given image and extracts:
@@ -168,13 +156,11 @@ def parse_params_file(image_name):
     
     return scaled_dimensions, grid, total_pieces
 
-#TODO: pass to game_agent instead of hardcoding
+#TODO: make image_name dynamic hardcoding
 image_name = "img_2"
-puzzle_width, puzzle_height = set_puzzle_dimensions(image_name)  # example dimensions in pixels
 
 scaled_dimensions, grid, total_pieces = parse_params_file(image_name)
 puzzle_width, puzzle_height = scaled_dimensions[0], scaled_dimensions[1]
-
 # Define margins
 margin_x, margin_y = 100, 100
 
