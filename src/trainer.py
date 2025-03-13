@@ -36,7 +36,8 @@ def load_models(policy_model, value_model, save_path, epoch):
 # In practice, we might have more sophisticated target generation 
 # (for example, using the visit count distribution from MCTS as the target for the policy network).
 
-#TODO
+#TODO: mcts_target_policy
+
 def compute_loss(state, action, reward, next_state, visual_features, next_visual_features, gamma=0.99):
     # Convert states to tensors
     state_tensor = convert_state_to_tensor(state)
@@ -77,7 +78,7 @@ class Trainer:
     def train(self, num_epochs):
         for epoch in range(num_epochs):
             state = self.env.reset()  # Initialize environment with a new image, if applicable
-            #TODO 
+            #TODO make env. reset
             total_reward = 0
             num_moves = 0
             done = False

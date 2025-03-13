@@ -9,6 +9,7 @@ from env import State, Action, Piece
 from env import apply_action, is_terminal
 #set_puzzle_dimensions
 from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
+from env import load_puzzle_pieces
 from mcts import MCTS # Import your MCTS function from your MCTS module
 
 # Initialize Pygame
@@ -28,8 +29,9 @@ img_path = "img_2"
 pieces_path = f"pieces_{img_path}"
 
 # ----- Helper Functions for Loading Pieces -----
+"""
 def load_puzzle_pieces(pieces_folder):
-    """Load puzzle pieces from the specified folder with random initial positions."""
+    #Load puzzle pieces from the specified folder with random initial positions.
     global BOX_WIDTH, BOX_HEIGHT
 
     pieces_dict = {}
@@ -74,6 +76,7 @@ def load_puzzle_pieces(pieces_folder):
             print(f"Error loading piece {piece_file}: {e}")
     print(f"Successfully loaded {len(pieces_dict)} pieces")
     return pieces_dict
+    """
 
 # ----- Rendering Functions -----
 def render_state(screen, state):

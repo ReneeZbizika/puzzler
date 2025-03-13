@@ -12,6 +12,7 @@ import argparse
 from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves
 from env import initialize_state
 from models import PolicyNetwork, ValueNetwork
+from env import get_dimensions
 
 # Constants (set these appropriately)
 MAX_SIM_DEPTH = 10
@@ -20,13 +21,13 @@ MCTS_ITERATIONS = 100
 COMPATIBILITY_THRESHOLD = 0.5
 C = 1.0  # Exploration constant
 
-# You should set these dimensions based on your state representation.
-state_dim = 100  
-action_dim = 10
+
+# Get dimensions dynamically from env.py
+state_dim, action_dim, visual_dim = get_dimensions()
 
 # Create the models (initially untrained)
 policy_model = PolicyNetwork(state_dim, action_dim)
-value_model = ValueNetwork(state_dim)
+value_model = ValueNetwork(state_dim, visual_dim)
 
 
 # --- Neural Network Helper Functions (Using PyTorch) ---

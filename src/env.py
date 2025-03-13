@@ -1,6 +1,9 @@
 import copy
 import numpy as np
 import os
+import pygame
+import random
+import time
 
 
 # --- Piece Class ---
@@ -47,6 +50,55 @@ class Piece:
     def draw(self, surface):
         surface.blit(self.image, (self.x, self.y))
     """
+    
+def load_puzzle_pieces(pieces_folder):
+    """Load puzzle pieces from the specified folder with random initial positions."""
+    global BOX_WIDTH, BOX_HEIGHT
+
+    pieces_dict = {}
+    
+    # Load image parameters and set box dimensions
+    #BOX_WIDTH, BOX_HEIGHT = set_puzzle_dimensions("img_2")
+    
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pieces_path = os.path.join(project_root, pieces_folder)
+    
+    if not os.path.exists(pieces_path):
+        print(f"Error: Pieces folder '{pieces_path}' not found!")
+        return {}
+    
+    piece_files = [f for f in os.listdir(pieces_path) if f.endswith('.png')]
+    if not piece_files:
+        print(f"Error: No PNG files found in '{pieces_path}'")
+        return {}
+    
+    piece_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    print(f"Loading {len(piece_files)} puzzle pieces")
+    
+    start_x_range = (50, SCREEN_WIDTH - 150)
+    start_y_range = (50, SCREEN_HEIGHT - 150)
+    
+    for i, piece_file in enumerate(piece_files):
+        try:
+            piece_path = os.path.join(pieces_path, piece_file)
+            image = pygame.image.load(piece_path).convert_alpha()
+            
+            # Generate a random position
+            start_x = random.randint(*start_x_range)
+            start_y = random.randint(*start_y_range)
+            # Re-generate if the position is inside the grey rectangle
+            while (BOX_X - 5 <= start_x <= BOX_X + BOX_WIDTH + 5) and (BOX_Y - 5 <= start_y <= BOX_Y + BOX_HEIGHT + 5):
+                start_x = random.randint(*start_x_range)
+                start_y = random.randint(*start_y_range)
+            
+            piece = Piece(piece_id=i+1, image=image, x=start_x, y=start_y)
+            pieces_dict[piece.id] = piece
+        except Exception as e:
+            print(f"Error loading piece {piece_file}: {e}")
+    print(f"Successfully loaded {len(pieces_dict)} pieces")
+    return pieces_dict
+    
+    
     
 # --- State Class ---
 class State:
@@ -230,6 +282,29 @@ def is_terminal(state):
         return False
     
 # --- Environment Functions (Can be wrapped with Gymnasium) ---
+def create_initial_assembly():
+    """
+    Creates an empty puzzle assembly matrix.
+    Adjust dimensions based on puzzle size.
+    """
+    puzzle_size = (xn, yn)  # use xn and yn from JSON
+    return np.zeros(puzzle_size, dtype=np.int32)  # Empty puzzle representation
+
+def load_puzzle_pieces():
+    """
+    Loads puzzle pieces (could be from a dataset or predefined list).
+    Each piece might have an ID, edges, and other properties.
+    """
+    # total_pieces from JSON
+    return [{"id": i, "edges": None} for i in range(1, total_pieces + 1)]
+
+def initialize_edge_info():
+    """
+    Initializes edge compatibility information.
+    Can be computed based on image analysis or loaded from a dataset.
+    """
+    return np.random.rand(25, 4)  # Example: 25 pieces with 4 edge values each
+
 def initialize_state():
     """
     Set up the initial state of the puzzle.
@@ -239,6 +314,33 @@ def initialize_state():
     edge_info = initialize_edge_info()              # compute or load initial edge compatibility info
     return State(assembly, unplaced_pieces, edge_info)
 
+
 #TODO
 def reset():
     pass
+
+# Define dimensions based on environment data
+def get_dimensions():
+    """
+    Dynamically determines:
+    - state_dim: The length of the flattened state vector.
+    - action_dim: The total number of possible actions.
+    - visual_dim: The number of extracted visual features.
+    
+    Returns:
+        state_dim (int), action_dim (int), visual_dim (int)
+    """
+    # Initialize a sample state from the environment
+    sample_state = initialize_state()
+
+    # Compute state dimension: Flattened representation of the state
+    state_dim = sample_state.assembly.flatten().shape[0]  # Assuming 'assembly' is a NumPy array
+
+    # Compute action dimension: Count the total number of valid actions for a sample state
+    sample_actions = valid_actions(sample_state)
+    action_dim = len(sample_actions) if sample_actions else 10  # Fallback if empty
+
+    # Compute visual feature dimension: Adjust based on extracted visual features
+    visual_dim = 50  # Example, could be edge matching, SSIM similarity, etc.
+
+    return state_dim, action_dim, visual_dim
