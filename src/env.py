@@ -157,29 +157,62 @@ def parse_params_file(image_name):
     return scaled_dimensions, grid, total_pieces
 
 #TODO: make image_name dynamic hardcoding
-image_name = "img_2"
 
-scaled_dimensions, grid, total_pieces = parse_params_file(image_name)
-puzzle_width, puzzle_height = scaled_dimensions[0], scaled_dimensions[1]
+image_name = "img_2"
+import json
+import os
+
+# Build the file path to your JSON file.
+params_folder = "params"
+img_name = "img_2"  # or derive from your original image path
+param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
+
+# Load the JSON file.
+with open(param_file_path, 'r') as f:
+    data = json.load(f)
+
+# Now you can grab any value from the JSON.
+image_path = data["Image"]
+original_dims = data["Original dimensions"]
+scaled_dims = data["Scaled dimensions"]
+scale_factor = data["Scale factor"]
+grid = data["Grid"]
+xn = data["Num Row Pieces"]
+yn = data["Num Col Pieces"]
+total_pieces = data["Total pieces"]
+BOX_WIDTH = data["BOX_WIDTH"]
+BOX_HEIGHT = data["BOX_HEIGHT"]
+SCREEN_WIDTH = data["SCREEN_WIDTH"]
+SCREEN_HEIGHT = data["SCREEN_HEIGHT"]
+command = data["Command"]
+
+print("Image:", image_path)
+print("Original dimensions:", original_dims)
+print("Scaled dimensions:", scaled_dims)
+print("Grid:", grid)
+print("Command:", command)
+
+#scaled_dimensions, grid, total_pieces = parse_params_file(image_name)
+#puzzle_width, puzzle_height = scaled_dimensions[0], scaled_dimensions[1]
 # Define margins
-margin_x, margin_y = 100, 100
+#margin_x, margin_y = 100, 100
 
 # Set screen dimensions accordingly
-SCREEN_WIDTH = int(puzzle_width) * 1.5 + 2 * margin_x
-SCREEN_HEIGHT = int(puzzle_height) * 1.5 + 2 * margin_y
+#SCREEN_WIDTH = int(puzzle_width) * 1.5 + 2 * margin_x
+#SCREEN_HEIGHT = int(puzzle_height) * 1.5 + 2 * margin_y
 
 # The solution box is exactly the puzzle dimensions
-BOX_WIDTH = puzzle_width
-BOX_HEIGHT = puzzle_height
+#BOX_WIDTH = puzzle_width
+#BOX_HEIGHT = puzzle_height
 
 # Center the solution box on the screen
 BOX_X = (SCREEN_WIDTH - BOX_WIDTH) // 2
 BOX_Y = (SCREEN_HEIGHT - BOX_HEIGHT) // 2
 
-num_rows = grid[0]
-num_cols = grid[1]
-cell_width = BOX_WIDTH / num_cols
-cell_height = BOX_HEIGHT / num_rows
+#num_rows = int(grid[0])
+#num_cols = int(grid[1])
+cell_width = BOX_WIDTH / xn
+cell_height = BOX_HEIGHT / yn
 
 
 # Dummy placeholder functions (#TODO: have to implement this)

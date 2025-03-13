@@ -287,6 +287,8 @@ def save_image_parameters(original_image_path, width, height, scale_factor, xn, 
       - Scaled dimensions: the dimensions of the image after scaling.
       - Scale factor: the factor used to scale the original dimensions.
       - Grid: the number of grid rows and columns (xn x yn).
+      - Xn: (xn).
+      - Yn: (yn).
       - Total pieces: computed as xn * yn.
       - BOX_WIDTH and BOX_HEIGHT: the dimensions of the puzzle's solution box.
       - SCREEN_WIDTH and SCREEN_HEIGHT: overall screen dimensions computed with margins.
@@ -308,13 +310,13 @@ def save_image_parameters(original_image_path, width, height, scale_factor, xn, 
     
     # Define the solution box dimensions.
     # Here, we assume the solution box matches the scaled image dimensions.
-    BOX_WIDTH = scaled_width * 3.8
-    BOX_HEIGHT = scaled_height * 3.8
+    BOX_WIDTH = int(scaled_width * 3.8)
+    BOX_HEIGHT = int(scaled_height * 3.8)
     
     # Define screen dimensions based on the box dimensions plus margins.
     margin = 100  # Adjust margin as needed.
-    SCREEN_WIDTH = BOX_WIDTH * 1.5 + 2 * margin
-    SCREEN_HEIGHT = BOX_HEIGHT * 1.5 + 2 * margin
+    SCREEN_WIDTH = int(BOX_WIDTH * 1.5 + 2 * margin)
+    SCREEN_HEIGHT = int(BOX_HEIGHT * 1.5 + 2 * margin)
     
     # Prepare the data dictionary.
     data = {
@@ -323,6 +325,8 @@ def save_image_parameters(original_image_path, width, height, scale_factor, xn, 
         "Scaled dimensions": f"{scaled_width}x{scaled_height}",
         "Scale factor": scale_factor,
         "Grid": f"{xn}x{yn}",
+        "Num Row Pieces": xn,
+        "Num Col Pieces": yn,
         "Total pieces": xn * yn,
         "BOX_WIDTH": BOX_WIDTH,
         "BOX_HEIGHT": BOX_HEIGHT,
