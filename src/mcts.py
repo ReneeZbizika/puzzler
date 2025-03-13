@@ -10,6 +10,7 @@ import time
 import argparse
 
 from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves
+from env import initialize_state
 from models import PolicyNetwork, ValueNetwork
 
 # Constants (set these appropriately)
@@ -49,13 +50,22 @@ def policy_network_forward(state):
     probs = policy_model(state_tensor)             # policy_model: a pretrained PyTorch model, shape: (1, action_dim)
     return probs
 
-def value_network_forward(state):
+# visual_features: 
+# Edge compatibility between adjacent pieces.
+# Current assembled image similarity to the final solution.
+# Histogram comparison or SSIM scores between assembled and target images.
+#  can compute these features inside env.py using OpenCV or other methods.
+
+def value_network_forward(state, visual_features):
     """
     Convert the state into a tensor and return the predicted state value.
+    Now includes visual features.
     """
     state_tensor = convert_state_to_tensor(state)
-    value = value_model(state_tensor)              # value_model: a pretrained PyTorch model
-    return value.item() #return value.item or return value?
+    visual_tensor = torch.tensor(visual_features, dtype=torch.float32).unsqueeze(0)
+
+    value = value_model(state_tensor, visual_tensor)  # Updated to pass both inputs
+    return value.item()
 
 
 # --- MCTS Core Functions ---
@@ -103,6 +113,7 @@ def expansion(node):
     # Optionally, return one of the new child nodes for simulation
     return random.choice(node.children) if node.children else node
 
+# Pass visual features into value_network_forward() for evaluation.
 def simulation(state, max_depth=MAX_SIM_DEPTH):
     """
     Simulate the outcome starting from 'state' until a terminal state or depth cutoff.
@@ -212,15 +223,16 @@ def compute_intermediate_reward(state, action, time_penalty, mode='visual'):
     Returns:
       A reward value (float).
     """
-    if mode == 'visual':
-        compatibility_score = compute_edge_compatibility(state, action)
-        visual_score = evaluate_visual(state, action)
+    #if mode == 'visual':
+        #compatibility_score = compute_edge_compatibility(state, action)
+        #visual_score = evaluate_visual(state, action)
         # weight_edge and weight_visual should be defined globally or passed as parameters
-        reward = (weight_edge * compatibility_score +
-                  weight_visual * visual_score -
-                  time_penalty)
-        return reward
-    elif mode == 'assembly':
+        #reward = (weight_edge * compatibility_score +
+                  #weight_visual * visual_score -
+                  #time_penalty)
+        #return reward
+        #pass
+    if mode == 'assembly':
         # For example, check if the piece lands in its correct cell.
         # You might have a helper function that returns True/False if piece is correctly assembled.
         if is_piece_correctly_assembled(state, action.piece_id):
@@ -284,16 +296,6 @@ def compute_edge_compatibility(state, action):
     score = evaluate_edges(state, action)  # user-defined evaluation function
     return score
 
-
-# --- Environment Functions (Can be wrapped with Gymnasium) ---
-def initialize_state():
-    """
-    Set up the initial state of the puzzle.
-    """
-    assembly = create_initial_assembly()          # a zero matrix with dimensions based on puzzle specs
-    unplaced_pieces = load_puzzle_pieces()          # load puzzle pieces
-    edge_info = initialize_edge_info()              # compute or load initial edge compatibility info
-    return State(assembly, unplaced_pieces, edge_info)
 
 # --- PyGame Rendering ---
 #TODO implement rendering and pass to game_v2

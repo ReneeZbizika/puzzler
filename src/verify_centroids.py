@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 def main():
     # Load the centroid data
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    json_path = os.path.join(project_root, "data", "puzzle_centroids.json")
+    json_path = os.path.join(project_root, "Datasets", "puzzle_centroids.json")
     
     with open(json_path, "r") as f:
         data = json.load(f)
