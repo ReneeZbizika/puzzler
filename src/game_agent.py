@@ -66,13 +66,19 @@ def load_puzzle_pieces(pieces_folder):
         try:
             piece_path = os.path.join(pieces_path, piece_file)
             image = pygame.image.load(piece_path).convert_alpha()
+            
+            # Generate a random position
             start_x = random.randint(*start_x_range)
             start_y = random.randint(*start_y_range)
+            # Re-generate if the position is inside the grey rectangle
+            while (BOX_X <= start_x <= BOX_X + BOX_WIDTH) and (BOX_Y <= start_y <= BOX_Y + BOX_HEIGHT):
+                start_x = random.randint(*start_x_range)
+                start_y = random.randint(*start_y_range)
+            
             piece = Piece(piece_id=i+1, image=image, x=start_x, y=start_y)
             pieces_dict[piece.id] = piece
         except Exception as e:
             print(f"Error loading piece {piece_file}: {e}")
-    
     print(f"Successfully loaded {len(pieces_dict)} pieces")
     return pieces_dict
 

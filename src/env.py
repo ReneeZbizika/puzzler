@@ -30,6 +30,8 @@ class Piece:
         return Piece(self.id, self.image, self.x, self.y)
     
     # if using self.rect, make sure NOT to convert to torch tensor
+    # self.rect = pygame.Rect(x, y, image.get_width(), image.get_height())
+    # used in terminal state in game_agent
     
     def draw(self, surface):
         surface.blit(self.image, (self.x, self.y))
