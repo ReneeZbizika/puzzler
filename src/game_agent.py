@@ -64,7 +64,7 @@ def load_puzzle_pieces(pieces_folder):
             start_x = random.randint(*start_x_range)
             start_y = random.randint(*start_y_range)
             # Re-generate if the position is inside the grey rectangle
-            while (BOX_X <= start_x <= BOX_X + BOX_WIDTH) and (BOX_Y <= start_y <= BOX_Y + BOX_HEIGHT):
+            while (BOX_X - 5 <= start_x <= BOX_X + BOX_WIDTH + 5) and (BOX_Y - 5 <= start_y <= BOX_Y + BOX_HEIGHT + 5):
                 start_x = random.randint(*start_x_range)
                 start_y = random.randint(*start_y_range)
             
@@ -164,13 +164,14 @@ def main():
             render_state(screen, state)
             
             #TODO: currently just displays number of seconds (ex. 100) make it look nice
+            # also note - time elapsed just is a moves ocunter, doesnt actually track seconds
             time_text = font.render(f"Time Elapsed: {state.time_elapsed}", True, (0, 0, 0))
             screen.blit(time_text, (10, 10))
             pygame.display.flip()
             pygame.time.wait(500)
         
         # For visualization, wait a short period between actions (e.g., 500 ms)
-        pygame.time.wait(500)
+        pygame.time.wait(300)
         clock.tick(60)
 
     pygame.quit()

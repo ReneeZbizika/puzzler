@@ -17,6 +17,54 @@ def convert_svg_to_png(input_svg, output_png):
     cairosvg.svg2png(url=input_svg, write_to=output_png)
     print(f"Converted {input_svg} to {output_png}")
 
+def load_json(filename):
+    """Load JSON file and return the data."""
+    with open(filename, "r") as f:
+        return json.load(f)
+
+def generate_answer_key(output_pieces_folder, param_file_path):
+    """
+    Generate an answer key ensuring alignment between piece IDs and extracted images.
+    """
+    data = load_json(param_file_path)
+
+    # Load puzzle parameters
+    BOX_X, BOX_Y = data["BOX_WIDTH"], data["BOX_HEIGHT"]
+    rows, cols = data["Num Row Pieces"], data["Num Col Pieces"]
+    
+    # Ensure the correct cell size
+    piece_width = BOX_X // cols
+    piece_height = BOX_Y // rows
+
+    answer_key = {}
+
+    # Ensure we get pieces in the right order
+    piece_files = sorted(
+        os.listdir(output_pieces_folder),
+        key=lambda x: int(x.split("_")[1].split(".")[0])  # Sort numerically by piece ID
+    )
+
+    # Correct x, y placement based on the grid
+    piece_id = 0
+    for r in range(rows):
+        for c in range(cols):
+            if piece_id >= len(piece_files):  # Ensure index doesn't exceed available pieces
+                break
+
+            piece_name = piece_files[piece_id]
+            target_x = BOX_X + c * piece_width
+            target_y = BOX_Y + r * piece_height
+            
+            answer_key[piece_name] = {"x": int(target_x), "y": int(target_y)}
+            piece_id += 1
+
+    # Save the corrected answer key
+    output_filename = os.path.join(output_pieces_folder, "answer_key.json")
+    with open(output_filename, "w") as f:
+        json.dump(answer_key, f, indent=4)
+
+    print(f"Corrected Answer Key saved to {output_filename}")
+
 ###############################################
 # Extract Puzzle Pieces Using Template Mask  #
 ###############################################
@@ -195,6 +243,10 @@ def main():
     scaled_height = int(original_height * args.scale_factor)
     print(f"Original dimensions: {original_width}x{original_height}")
     print(f"Scaled dimensions (after {args.scale_factor*100}% scaling): {scaled_width}x{scaled_height}")
+    
+    # Generate answer key
+    param_file_path = f"params/{os.path.splitext(os.path.basename(args.original))[0]}_params.json"
+    generate_answer_key(args.output_pieces_folder, param_file_path)
 
 # Add a new function to scale down the puzzle pieces
 def scale_puzzle_pieces(pieces_folder, scale_factor):

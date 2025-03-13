@@ -125,44 +125,13 @@ def apply_action(state, action):    #i.e, Transitions
     return new_state
 
 # ----- Helper Functions for Game State (W/o Render) -----
-# Why is 3.8 for scaled dims?
-def parse_params_file(image_name):
-    """
-    Reads the parameter file for the given image and extracts:
-      - scaled_dimensions as a tuple (width, height)
-      - grid as a tuple (rows, columns)
-      - total_pieces as an integer
-    """
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    param_file = os.path.join(project_root, "params", f"{image_name}_params.txt")
-    
-    scaled_dimensions = None
-    grid = None
-    total_pieces = None
-
-    with open(param_file, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("Scaled dimensions:"):
-                dims = line.split(': ')[1]      # "136x98"
-                width, height = dims.split('x')
-                scaled_dimensions = (int(width) * 3.8, int(height) * 3.8)
-            elif line.startswith("Grid:"):
-                grid_str = line.split(': ')[1]    # "5x5"
-                rows, cols = grid_str.split('x')
-                grid = (int(rows), int(cols))
-            elif line.startswith("Total pieces:"):
-                total_pieces = int(line.split(': ')[1])
-    
-    return scaled_dimensions, grid, total_pieces
-
 #TODO: make image_name dynamic hardcoding
-
 image_name = "img_2"
 import json
 import os
 
 # Build the file path to your JSON file.
+#TODO change img_name to dynamic 
 params_folder = "params"
 img_name = "img_2"  # or derive from your original image path
 param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
@@ -186,34 +155,21 @@ SCREEN_WIDTH = data["SCREEN_WIDTH"]
 SCREEN_HEIGHT = data["SCREEN_HEIGHT"]
 command = data["Command"]
 
-print("Image:", image_path)
-print("Original dimensions:", original_dims)
-print("Scaled dimensions:", scaled_dims)
-print("Grid:", grid)
-print("Command:", command)
-
-#scaled_dimensions, grid, total_pieces = parse_params_file(image_name)
-#puzzle_width, puzzle_height = scaled_dimensions[0], scaled_dimensions[1]
-# Define margins
-#margin_x, margin_y = 100, 100
-
-# Set screen dimensions accordingly
-#SCREEN_WIDTH = int(puzzle_width) * 1.5 + 2 * margin_x
-#SCREEN_HEIGHT = int(puzzle_height) * 1.5 + 2 * margin_y
-
-# The solution box is exactly the puzzle dimensions
-#BOX_WIDTH = puzzle_width
-#BOX_HEIGHT = puzzle_height
+#print("Image:", image_path)
+#print("Original dimensions:", original_dims)
+#print("Scaled dimensions:", scaled_dims)
+#print("Grid:", grid)
+#print("Command:", command)
 
 # Center the solution box on the screen
-BOX_X = (SCREEN_WIDTH - BOX_WIDTH) // 2
-BOX_Y = (SCREEN_HEIGHT - BOX_HEIGHT) // 2
+# Override in game_agent, where we set to 50, 50
+BOX_X = 50
+BOX_Y = 50
+#BOX_X = (SCREEN_WIDTH - BOX_WIDTH) // 2
+#BOX_Y = (SCREEN_HEIGHT - BOX_HEIGHT) // 2
 
-#num_rows = int(grid[0])
-#num_cols = int(grid[1])
 cell_width = BOX_WIDTH / xn
 cell_height = BOX_HEIGHT / yn
-
 
 # Dummy placeholder functions (#TODO: have to implement this)
 #TODO
