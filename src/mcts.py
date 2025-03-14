@@ -95,7 +95,10 @@ def selection(node, policy_model):
             # UCB formula with policy prior: Q + C * pi * sqrt(N_parent) / (1 + N_child)
             # For illustration, we assume a uniform prior (or you could use policy_network)
             # pi = 1.0 / len(node.children)
-            pi = policy_network_forward(child.parent.state, policy_model)[child.action]  # pseudo-access; adjust as needed
+            # Convert child's action to an integer index.
+            idx = action_to_index(child.parent.state, child.action)
+            pi = policy_network_forward(child.parent.state, policy_model)[0, idx].item()
+            #pi = policy_network_forward(child.parent.state, policy_model)[child.action]  # pseudo-access; adjust as needed
             ucb_score = (child.total_reward / (child.visits + 1e-5) +
                          C * pi * (math.sqrt(node.visits) / (1 + child.visits)))
             if ucb_score > best_score:
@@ -330,16 +333,13 @@ def compute_intermediate_reward(state, action, time_penalty, mode='assembly'):
         
         if is_piece_correctly_assembled(state, action.piece_id, centroids, tolerance): 
             # Give a positive reward if correctly assembled (you can tune this value)
-            reward = 1.0 - time_penalty
+            reward = 5.0 - time_penalty
         else:
             # Otherwise, provide a negative or zero reward (penalize the time penalty)
             reward = -time_penalty
         return reward
     else:
         raise ValueError("Invalid mode. Choose 'visual' or 'assembly'.")
-
-    """_summary_
-    """
 
 
 # --- Conversions ---

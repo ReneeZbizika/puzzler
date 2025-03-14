@@ -534,6 +534,7 @@ def resize_to_match(img1, img2):
     If the images already have the same dimensions, they are returned unchanged.
     """
     # Get dimensions of both images.
+    surf = pygame.display.get_surface()
     h1, w1 = img1.shape[:2]
     h2, w2 = img2.shape[:2]
     

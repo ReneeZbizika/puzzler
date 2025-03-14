@@ -6,7 +6,7 @@ import matplotlib as plt
 import pygame
 
 import env
-from env import get_dimensions, image_name, img_name
+from env import get_dimensions, image_name, img_name, render_state
 from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS
 #state_dim, action_dim, visual_dim,
 from models import PolicyNetwork, ValueNetwork
@@ -68,12 +68,13 @@ def compute_loss(state, action, reward, next_state, visual_features, next_visual
 
 #TODO
 class Trainer:
-    def __init__(self, env, policy_model, value_model, optimizer, save_path):
+    def __init__(self, env, policy_model, value_model, optimizer, save_path, render_on):
         self.env = env
         self.policy_model = policy_model
         self.value_model = value_model
         self.optimizer = optimizer
         self.save_path = save_path
+        self.render_on = render_on
         self.losses = []
         self.episode_rewards = []
         self.episode_lengths = []
@@ -160,7 +161,9 @@ class Trainer:
 
 if __name__ == "__main__":
     pygame.init()
+    pygame.display.set_mode((1, 1))  # or minimal, (1,1)
+    # use render_state from env
     # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
-    trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints")
+    trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on = True)
     trainer.train(num_epochs=100)

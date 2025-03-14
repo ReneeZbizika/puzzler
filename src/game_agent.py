@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from env import State, Action, Piece
-from env import apply_action, is_terminal
+from env import apply_action, is_terminal, render_state
 #set_puzzle_dimensions
 from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
 from env import load_puzzle_pieces
@@ -79,14 +79,6 @@ def load_puzzle_pieces(pieces_folder):
     return pieces_dict
     """
 
-# ----- Rendering Functions -----
-def render_state(screen, state):
-    screen.fill(BG_COLOR)
-    pygame.draw.rect(screen, BOARD_COLOR, (BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT))
-    for piece in state.pieces.values():
-        piece.draw(screen)
-    pygame.display.flip()
-
 
 # ----- [DUMMY] Agent Action Selection -----
 def dummy_agent_select_action(state):
@@ -104,7 +96,7 @@ def dummy_agent_select_action(state):
     return action
 
 # ----- Agent Action Selection (via MCTS) -----
-def agent_select_action(state):
+def agent_select_action(state, screen):
     """
     Use MCTS to select the next action given the current state.
     This function calls the MCTS routine (which uses your policy/value networks) 
@@ -116,8 +108,11 @@ def agent_select_action(state):
     print("Agent selected action:", action)
     return action
 
-# ----- Main Game Loop (Agent-Controlled Version) -----
-def main():
+# ----- Main Game Loop (Agent-Controlled Version) -----    
+def run_agent_game():
+    """
+    Sets up the puzzle in agent-controlled mode and runs the loop.
+    """
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Jigsaw Puzzle Game")
@@ -151,7 +146,7 @@ def main():
         # Instead of handling mouse events, let the agent choose an action
         if not is_terminal(state):
             #action = dummy_agent_select_action(state) #switch between dummy and real
-            action = agent_select_action(state)
+            action = agent_select_action(state, screen)
             state = apply_action(state, action)
         else:
             print("Terminal state reached!")
@@ -180,7 +175,8 @@ def main():
         clock.tick(60)
 
     pygame.quit()
+    #print("Agent game finished.")
     sys.exit()
 
 if __name__ == "__main__":
-    main()
+    run_agent_game()

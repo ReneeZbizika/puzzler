@@ -1,53 +1,44 @@
-import torch
-import os
-from trainer import Trainer
-from models import PolicyNetwork, ValueNetwork
-from env import initialize_state
-import torch.optim as optim
 import pygame
+import torch
+import env
+from env import SCREEN_WIDTH, SCREEN_HEIGHT
+from trainer import Trainer  # If you keep your Trainer in a separate file
+#from env import MyEnvironment
+from models import PolicyNetwork, ValueNetwork
 
-# Set dimensions (adjust based on your state representation)
-from env import get_dimensions
-from mcts import MCTS
+def main():
+    # Decide whether you want to render during training
+    render_on = True  # or True if you want a full window
 
-# Dynamically retrieve dimensions
-STATE_DIM, ACTION_DIM, VISUAL_DIM = get_dimensions()
+    if render_on:
+        pygame.init()
+        pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))  # Full-size window for debugging
+    else:
+        # Still need a display for image loading, so minimal:
+        pygame.init()
+        pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 
-# Initialize models
-policy_model = PolicyNetwork(STATE_DIM, ACTION_DIM)
-value_model = ValueNetwork(STATE_DIM, VISUAL_DIM)
+    # Create your environment
+    #env = MyEnvironment()
+    # Create your models
+    policy_model = PolicyNetwork(state_dim=30, action_dim=200)
+    value_model = ValueNetwork(state_dim=30, visual_dim=128)
+    # Create an optimizer
+    optimizer = torch.optim.Adam(list(policy_model.parameters()) + list(value_model.parameters()), lr=1e-3)
 
-# Optimizer
-optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parameters()), lr=1e-3)
-
-# Create environment
-env = initialize_state()  # Make sure env.py correctly initializes the state
-
-# Define model save path
-SAVE_PATH = "checkpoints"
-
-# Ensure checkpoint directory exists
-os.makedirs(SAVE_PATH, exist_ok=True)
-
-# Initialize Trainer
-#trainer = Trainer(env, policy_model, value_model, optimizer, save_path=SAVE_PATH)
-
-# Load trained models
-policy_model.load_state_dict(torch.load("checkpoints/policy_epoch_100.pth"))
-value_model.load_state_dict(torch.load("checkpoints/value_epoch_100.pth"))
-
-# Initialize environment
-state = env.reset()
-
-# Run MCTS to pick an action using the trained models
-# action = MCTS(state, iterations=100)
-# print(f"Selected action: {action}")
-
-# Run training for 100 epochs
-if __name__ == "__main__":
-    pygame.init()
-    # if render off, pygame.display.set_mode((1, 1)) for minimal display
-    trainer = Trainer(env, policy_model, value_model, optimizer, save_path=SAVE_PATH)
+    # Instantiate the Trainer
+    trainer = Trainer(
+        env=env,
+        policy_model=policy_model,
+        value_model=value_model,
+        optimizer=optimizer,
+        save_path="checkpoints",
+        render_on=render_on  # pass the flag
+    )
     trainer.train(num_epochs=100)
-    
 
+    # Quit pygame when done
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()

@@ -268,6 +268,7 @@ SCREEN_WIDTH = data["SCREEN_WIDTH"]
 SCREEN_HEIGHT = data["SCREEN_HEIGHT"]
 command = data["Command"]
 BG_COLOR = (240, 240, 240)
+BOX_COLOR = (180, 180, 180)
 
 #print("Image:", image_path)
 #print("Original dimensions:", original_dims)
@@ -331,18 +332,19 @@ def is_terminal(state):
     """
     # piece.rect.width , piece.rect.height
     """
+    if not(state.unplaced_pieces):
+        return True
+    else:
+        return False
+    """
+    # naive solution, move all of them once
+    # state.unplaced_piece is a set
     for piece in state.pieces.values():
         if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.image.get_width() and 
                 BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.image.get_height()):
             return False
     return True
-    """
-    # naive solution, move all of them once
-    # state.unplaced_piece is a set
-    if not(state.unplaced_pieces):
-        return True
-    else:
-        return False
+    
     
 # --- Environment Functions (Can be wrapped with Gymnasium) ---
 def create_initial_assembly():
@@ -424,9 +426,17 @@ def get_dimensions():
 
     # Compute action dimension: Count the total number of valid actions for a sample state
     sample_actions = valid_actions(sample_state)
-    action_dim = xn* yn * len(sample_actions) if sample_actions else 10  # Fallback if empty
+    action_dim = xn* yn * len(sample_actions) if sample_actions else xn * yn * 8  # Fallback if empty
 
     # Compute visual feature dimension: Adjust based on extracted visual features
-    visual_dim = 128  # Example, could be edge matching, SSIM similarity, etc.
-    print(state_dim, action_dim, visual_dim)
+    visual_dim = 2  # Example, could be edge matching, SSIM similarity, etc.
+    #print(state_dim, action_dim, visual_dim)
     return state_dim, action_dim, visual_dim
+
+# ----- Rendering Functions -----
+def render_state(screen, state):
+    screen.fill(BG_COLOR)
+    pygame.draw.rect(screen, BOX_COLOR, (BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT))
+    for piece in state.pieces.values():
+        piece.draw(screen)
+    pygame.display.flip()
