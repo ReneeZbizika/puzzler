@@ -160,8 +160,8 @@ class Trainer:
         print(f"Epoch {epoch}: Model saved and metrics logged.")
 
 if __name__ == "__main__":
-    pygame.init()
-    pygame.display.set_mode((1, 1))  # or minimal, (1,1)
+    #pygame.init()
+    #pygame.display.set_mode((1, 1))  # or minimal, (1,1)
     # use render_state from env
     # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
