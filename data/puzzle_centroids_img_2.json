@@ -1,0 +1,179 @@
+{
+  "pieces": [
+    {
+      "id": "piece_1",
+      "centroid": {
+        "x": 114,
+        "y": 374
+      }
+    },
+    {
+      "id": "piece_10",
+      "centroid": {
+        "x": 104,
+        "y": 300
+      }
+    },
+    {
+      "id": "piece_15",
+      "centroid": {
+        "x": 104,
+        "y": 226
+      }
+    },
+    {
+      "id": "piece_17",
+      "centroid": {
+        "x": 102,
+        "y": 154
+      }
+    },
+    {
+      "id": "piece_20",
+      "centroid": {
+        "x": 190,
+        "y": 160
+      }
+    },
+    {
+      "id": "piece_12",
+      "centroid": {
+        "x": 204,
+        "y": 234
+      }
+    },
+    {
+      "id": "piece_14",
+      "centroid": {
+        "x": 420,
+        "y": 241
+      }
+    },
+    {
+      "id": "piece_11",
+      "centroid": {
+        "x": 319,
+        "y": 244
+      }
+    },
+    {
+      "id": "piece_2",
+      "centroid": {
+        "x": 215,
+        "y": 372
+      }
+    },
+    {
+      "id": "piece_6",
+      "centroid": {
+        "x": 304,
+        "y": 309
+      }
+    },
+    {
+      "id": "piece_3",
+      "centroid": {
+        "x": 306,
+        "y": 372
+      }
+    },
+    {
+      "id": "piece_8",
+      "centroid": {
+        "x": 396,
+        "y": 307
+      }
+    },
+    {
+      "id": "piece_9",
+      "centroid": {
+        "x": 206,
+        "y": 300
+      }
+    },
+    {
+      "id": "piece_25",
+      "centroid": {
+        "x": 104,
+        "y": 88
+      }
+    },
+    {
+      "id": "piece_24",
+      "centroid": {
+        "x": 192,
+        "y": 88
+      }
+    },
+    {
+      "id": "piece_16",
+      "centroid": {
+        "x": 306,
+        "y": 170
+      }
+    },
+    {
+      "id": "piece_7",
+      "centroid": {
+        "x": 498,
+        "y": 309
+      }
+    },
+    {
+      "id": "piece_19",
+      "centroid": {
+        "x": 412,
+        "y": 160
+      }
+    },
+    {
+      "id": "piece_13",
+      "centroid": {
+        "x": 510,
+        "y": 244
+      }
+    },
+    {
+      "id": "piece_18",
+      "centroid": {
+        "x": 500,
+        "y": 162
+      }
+    },
+    {
+      "id": "piece_21",
+      "centroid": {
+        "x": 512,
+        "y": 88
+      }
+    },
+    {
+      "id": "piece_22",
+      "centroid": {
+        "x": 422,
+        "y": 88
+      }
+    },
+    {
+      "id": "piece_23",
+      "centroid": {
+        "x": 304,
+        "y": 98
+      }
+    },
+    {
+      "id": "piece_5",
+      "centroid": {
+        "x": 408,
+        "y": 372
+      }
+    },
+    {
+      "id": "piece_4",
+      "centroid": {
+        "x": 508,
+        "y": 372
+      }
+    }
+  ]
+}
