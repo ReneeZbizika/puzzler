@@ -6,6 +6,8 @@ import matplotlib as plt
 import pygame
 import torch.nn.functional as F
 import datetime
+import json
+import math
 
 import env
 from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
@@ -185,7 +187,7 @@ class Trainer:
             # Save initial state screenshot
             if self.render_on:
                 self.save_screenshot(epoch_dir, num_moves, state)
-                print(f"  [Saved initial puzzle state screenshot]")
+                print(f"[Saved initial puzzle state screenshot]")
             
             # Add a step limit to prevent infinite loops
             while not done and num_moves < MAX_STEPS_PER_EPOCH:
@@ -214,9 +216,10 @@ class Trainer:
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
                 # Save screenshot every 5 steps
-                if self.render_on and num_moves % 25 == 0:
+                if self.render_on and num_moves % 1 == 0:
+                    # print_puzzle_completion(state) undo after fix
                     self.save_screenshot(epoch_dir, num_moves, state)
-                    print(f"  [Saved puzzle state screenshot for step {num_moves}]")
+                    print(f"[Saved puzzle state screenshot for step {num_moves}]")
                 
                 state = next_state
                 total_reward += reward
@@ -224,7 +227,7 @@ class Trainer:
             # Save final state screenshot
             if self.render_on:
                 self.save_screenshot(epoch_dir, num_moves, state, is_final=True)
-                print(f"  [Saved final puzzle state screenshot]")
+                print(f"[Saved final puzzle state screenshot]")
             
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)
@@ -358,6 +361,84 @@ class Trainer:
         pygame.image.save(surface, filepath)
         
         return filepath
+
+def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+    """
+    Calculate how close the puzzle pieces are to their target positions.
+    
+    Args:
+        state: The current puzzle state containing piece positions
+        centroids_file: Path to the JSON file with target centroids
+        
+    Returns:
+        completion_percentage: Overall percentage of puzzle completion
+        piece_distances: Dictionary of distances for each piece
+    """
+    # Load centroids data
+    with open(centroids_file, 'r') as f:
+        centroids_data = json.load(f)
+    
+    # Extract piece information from state
+    piece_positions = {}
+
+    # GET PIECE CURRENT CENTROID POSITION
+
+    # Calculate distance for each piece
+    max_distance = 0
+    total_distance = 0
+    piece_distances = {}
+    
+    for piece_info in centroids_data["pieces"]:
+        piece_id = piece_info["id"]
+        target_x = piece_info["centroid"]["x"]
+        target_y = piece_info["centroid"]["y"]
+        
+        if piece_id in piece_positions:
+            current_x = piece_positions[piece_id]["x"]
+            current_y = piece_positions[piece_id]["y"]
+            
+            # Calculate Euclidean distance
+            distance = math.sqrt((current_x - target_x)**2 + (current_y - target_y)**2)
+            piece_distances[piece_id] = distance
+            total_distance += distance
+            
+            # Track theoretical maximum distance (diagonal of screen)
+            # This assumes a 974x758 screen based on the screenshot dimensions in the code
+            max_distance += math.sqrt(974**2 + 758**2)
+        else:
+            piece_distances[piece_id] = float('inf')
+            total_distance += math.sqrt(974**2 + 758**2)  # Add max possible distance for missing pieces
+            max_distance += math.sqrt(974**2 + 758**2)
+    
+    # Calculate completion percentage (inverted - closer means higher percentage)
+    # Using an exponential decay formula to make percentage more meaningful
+    if max_distance == 0:  # Safety check
+        completion_percentage = 100.0
+    else:
+        normalized_distance = total_distance / max_distance
+        completion_percentage = 100 * math.exp(-5 * normalized_distance)  # Exponential scaling
+    
+    return completion_percentage, piece_distances
+
+def print_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+    """
+    Print information about puzzle completion status.
+    """
+    completion_percentage, piece_distances = calculate_puzzle_completion(state, centroids_file)
+    
+    print(f"\n{'='*50}")
+    print(f"PUZZLE COMPLETION: {completion_percentage:.2f}%")
+    print(f"{'='*50}")
+    
+    # Sort pieces by distance (closest to furthest)
+    sorted_distances = sorted(piece_distances.items(), key=lambda x: x[1])
+    
+    print("PIECE POSITIONS (closest to target first):")
+    for i, (piece_id, distance) in enumerate(sorted_distances):
+        print(f"  {i+1:2d}. {piece_id}: {distance:.2f} pixels from target position")
+    print(f"{'='*50}\n")
+    
+    return completion_percentage
 
 if __name__ == "__main__":
     #pygame.init()
