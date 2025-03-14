@@ -216,7 +216,7 @@ class Trainer:
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
                 # Save screenshot every 5 steps
-                if self.render_on and num_moves % 1 == 0:
+                if self.render_on and num_moves % 50 == 0:
                     # print_puzzle_completion(state) undo after fix
                     self.save_screenshot(epoch_dir, num_moves, state)
                     print(f"[Saved puzzle state screenshot for step {num_moves}]")
