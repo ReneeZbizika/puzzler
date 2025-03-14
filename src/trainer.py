@@ -27,6 +27,9 @@ optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parame
 # Add this constant at the top of your file, outside any class
 GAMMA = 0.99  # Standard discount factor for reinforcement learning
 
+# Add a constant for max steps per epoch
+MAX_STEPS_PER_EPOCH = 100
+
 def load_models(policy_model, value_model, save_path, epoch):
     """Load saved models from checkpoint."""
     policy_model.load_state_dict(torch.load(f"{save_path}/policy_epoch_{epoch}.pth"))
@@ -129,11 +132,12 @@ class Trainer:
             num_moves = 0
             done = False
             
-            while not done:
+            # Add a step limit to prevent infinite loops
+            while not done and num_moves < MAX_STEPS_PER_EPOCH:
                 num_moves += 1
                 
                 # Print epoch and step on the same line
-                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}]", end=" ")
+                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}/{MAX_STEPS_PER_EPOCH}]", end=" ")
                 
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
@@ -156,6 +160,10 @@ class Trainer:
                 
                 state = next_state
                 total_reward += reward
+            
+            # Add a message if max steps was reached
+            if num_moves >= MAX_STEPS_PER_EPOCH:
+                print(f"\n[WARNING] [Maximum step limit of {MAX_STEPS_PER_EPOCH} reached for epoch {epoch+1}]")
                 
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)

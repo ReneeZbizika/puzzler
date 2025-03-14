@@ -271,12 +271,16 @@ def backpropagation(node, reward):
     """
     Propagate the simulation result back up the tree.
     """
+    node_count = 0
     while node is not None:
         node.visits += 1
         node.total_reward += reward
         node = node.parent
-        
-        
+        node_count += 1
+    
+    # Optionally return the number of nodes updated
+    return node_count
+
 #TODO edit render_fn = render_state, edit redit_state from mcts.py or game_agent.py (should be only one function, unite)
 def MCTS(root_state, policy_model, value_model, iterations=100, render=False, render_fn=None):
     root = Node(root_state)
@@ -315,8 +319,8 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
         print(f"[Reward: {reward:.4f}]", end=" ")
         
         # Backpropagation phase
-        backpropagation(expanded, reward)
-        print(f"[Backpropagation]")
+        nodes_updated = backpropagation(expanded, reward)
+        print(f"[Backpropagation: {nodes_updated} nodes]")
         
         # If rendering is enabled, call the rendering function with the current state.
         if render and render_fn is not None:
