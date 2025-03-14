@@ -4,9 +4,11 @@ from trainer import Trainer
 from models import PolicyNetwork, ValueNetwork
 from env import initialize_state
 import torch.optim as optim
+import pygame
 
 # Set dimensions (adjust based on your state representation)
 from env import get_dimensions
+from mcts import MCTS
 
 # Dynamically retrieve dimensions
 STATE_DIM, ACTION_DIM, VISUAL_DIM = get_dimensions()
@@ -28,9 +30,7 @@ SAVE_PATH = "checkpoints"
 os.makedirs(SAVE_PATH, exist_ok=True)
 
 # Initialize Trainer
-trainer = Trainer(env, policy_model, value_model, optimizer, save_path=SAVE_PATH)
-
-from mcts import MCTS
+#trainer = Trainer(env, policy_model, value_model, optimizer, save_path=SAVE_PATH)
 
 # Load trained models
 policy_model.load_state_dict(torch.load("checkpoints/policy_epoch_100.pth"))
@@ -45,6 +45,9 @@ state = env.reset()
 
 # Run training for 100 epochs
 if __name__ == "__main__":
+    pygame.init()
+    # if render off, pygame.display.set_mode((1, 1)) for minimal display
+    trainer = Trainer(env, policy_model, value_model, optimizer, save_path=SAVE_PATH)
     trainer.train(num_epochs=100)
     
 

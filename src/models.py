@@ -5,11 +5,12 @@ class PolicyNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(PolicyNetwork, self).__init__()
         self.fc = nn.Sequential(
-            nn.Linear(state_dim, 128),
+            nn.Linear(state_dim, 30),
             nn.ReLU(),
-            nn.Linear(128, action_dim),
+            nn.Linear(30, action_dim),
             nn.Softmax(dim=-1)
         )
+        #print(state_dim)
 
     def forward(self, x):
         return self.fc(x)
@@ -24,13 +25,13 @@ class ValueNetwork(nn.Module):
         super(ValueNetwork, self).__init__()
         
         # Numerical features (state representation)
-        self.state_fc = nn.Linear(state_dim, 128)
+        self.state_fc = nn.Linear(state_dim, 25)
 
         # Visual features (processed edges, similarity, etc.)
         self.visual_fc = nn.Linear(visual_dim, 128)
 
         # Combine both
-        self.combined_fc = nn.Linear(256, 128)
+        self.combined_fc = nn.Linear(153, 128)
         self.output = nn.Linear(128, 1)
 
     def forward(self, state_input, visual_input):

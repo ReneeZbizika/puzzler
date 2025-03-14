@@ -8,14 +8,15 @@ import numpy as np
 from env import State, Action, Piece
 from env import apply_action, is_terminal
 #set_puzzle_dimensions
-from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT
+from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
 from env import load_puzzle_pieces
 from mcts import MCTS # Import your MCTS function from your MCTS module
 
+from trainer import policy_model, value_model
+
 # Initialize Pygame
-pygame.init()
-print(BOX_WIDTH, BOX_HEIGHT)
-print(SCREEN_WIDTH, SCREEN_HEIGHT)
+#print(BOX_WIDTH, BOX_HEIGHT)
+#print(SCREEN_WIDTH, SCREEN_HEIGHT)
 
 # Constants
 BG_COLOR = (240, 240, 240)
@@ -110,13 +111,14 @@ def agent_select_action(state):
     to search the tree and returns the best action.
     """
     # Run MCTS for a fixed number of iterations (e.g., 100)
-    action = MCTS(state, iterations=100)
-    # MCTS(state, iterations=100, render=render_on, render_fn=lambda s: render_state(screen, s))
+    action = MCTS(state, policy_model, value_model, 100, True, render_fn=lambda s: render_state(screen, s))
+    # MCTS(state, iterations=100, render=render_on, )
     print("Agent selected action:", action)
     return action
 
 # ----- Main Game Loop (Agent-Controlled Version) -----
 def main():
+    pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     pygame.display.set_caption("Jigsaw Puzzle Game")
     font = pygame.font.SysFont(None, 36) # Initialize a font (using the default font, size 36)
@@ -137,7 +139,7 @@ def main():
     edge_info = {}
     
     # Create the State object using the unified State class from env.py
-    state = State(pieces_dict, assembly, unplaced_pieces, edge_info)
+    state = State(pieces_dict, assembly, unplaced_pieces)
     
     clock = pygame.time.Clock()
     running = True
@@ -148,8 +150,8 @@ def main():
     while running:
         # Instead of handling mouse events, let the agent choose an action
         if not is_terminal(state):
-            action = dummy_agent_select_action(state) #switch between dummy and real
-            #action = agent_select_action(state)
+            #action = dummy_agent_select_action(state) #switch between dummy and real
+            action = agent_select_action(state)
             state = apply_action(state, action)
         else:
             print("Terminal state reached!")

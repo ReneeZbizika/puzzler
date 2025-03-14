@@ -1,4 +1,4 @@
-# Edge Compatability Algorithm 
+# Edge Compatibility Algorithm 
 # Inspired by https://www-users.cse.umn.edu/~olver/v_/puzzles.pdf
 
 import numpy as np
@@ -7,8 +7,22 @@ import math
 import scipy as sp
 import itertools
 import os
+import json
+import pygame
+import cv2
+from skimage.metrics import structural_similarity as ssim
 
-# Helper functions
+from env import img_name, image_name, root_eval
+# env variables
+root = "Datasets"
+from env import BOX_WIDTH, BOX_HEIGHT, BOX_X, BOX_Y, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
+
+#TODO: write tests
+#TODO: check if the numbers generated in edge compatibility matrix are accurate 
+#TODO: switch off of segment_piece_black_bg to segment_piece
+
+# ---------- Edge Compatibility Helper ----------
+
 def load_image(path): 
     """Load an image in grayscale.""" 
     image = cv2.imread(path, cv2.IMREAD_GRAYSCALE) 
@@ -127,7 +141,7 @@ def resample_edge(signature, num_points):
     return resampled_signature
 
 # Define an edge compatibility score as a function of how “close” these signature vectors are
-# Compatability score between 2 edges
+# Compatibility score between 2 edges
 # greater alpha = stricter 
 def edge_compatibility(edge1_signature, edge2_signature, alpha=1.0): 
     # Ensure both edges are sampled to the same number of points: 
@@ -180,7 +194,6 @@ def segment_piece_black_bg(image_path):
     return largest_contour.squeeze(), box  # Ensure only two values are returned
 
 def extract_four_edges(contour, bounding_box):
-    
     # Sort bounding box points to ensure order: top-left, top-right, bottom-right, bottom-left
     box = sorted(bounding_box, key=lambda p: (p[1], p[0]))  # Sort by y, then x
     
@@ -222,7 +235,6 @@ def extract_four_edges(contour, bounding_box):
         edges[key] = np.array(edges[key])
 
     return [edges["top"], edges["right"], edges["bottom"], edges["left"]]
-
     
 def extract_edges_from_pieces(folder_path, num_resample_points=100):
     """Extracts all four edges from each puzzle piece and returns their signatures."""
@@ -259,6 +271,44 @@ def extract_edges_from_pieces(folder_path, num_resample_points=100):
 
     return edge_signatures, edge_to_piece_map, image_files
 
+#TODO check if edge_to_piece_map returns actually correct mapping
+def save_edge_to_piece_map(edge_to_piece_map, file_path="Datasets/evaluation/edge_to_piece_map.json"):
+    """
+    Save the edge_to_piece map to a JSON file.
+    
+    Parameters:
+      edge_to_piece_map (dict): Mapping from edge name to (piece_id, edge_index) tuple.
+      file_path (str): Destination file path.
+    """
+    # Convert tuple values to lists so that they are JSON serializable.
+    serializable_map = {key: list(value) for key, value in edge_to_piece_map.items()}
+    with open(file_path, "w") as f:
+        json.dump(serializable_map, f, indent=4)
+    print(f"Edge-to-piece map saved to {file_path}")
+
+def load_edge_to_piece_map(root_eval, img_name):
+    """
+    Load the edge_to_piece map from a JSON file.
+    
+    Returns:
+      dict: A mapping from edge name to (piece_id, edge_index) tuple.
+    """
+    # Validate that both parameters are strings.
+    if not isinstance(root_eval, str):
+        raise TypeError(f"Expected root_eval to be a string, got {type(root_eval)}")
+    if not isinstance(img_name, str):
+        print(img_name)
+        raise TypeError(f"Expected img_name to be a string, got {type(img_name)}")
+    
+    # Construct the file path by appending ".json"
+    file_path = os.path.join(root_eval, f"{img_name}_edge_to_piece_map.json")
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        serializable_map = json.load(f)
+    # Convert list values back to tuples.
+    edge_to_piece_map = {key: tuple(value) for key, value in serializable_map.items()}
+    return edge_to_piece_map
+
 def compute_compatibility_matrix(edge_signatures, alpha=1.0):
     """
     Computes compatibility scores between all extracted edges.
@@ -282,61 +332,46 @@ def compute_compatibility_matrix(edge_signatures, alpha=1.0):
     return compatibility_matrix
 
 
+# ---------- Script to Generate Compatibility Matrix ----------
 if __name__ == "__main__":
-    folder_path = "pieces_img_2"
+    #root_eval = "Datasets/evaluation" 
+    # ^ already defined in globals
+    base_name = os.path.splitext(image_name)[0]
+    
+    # Use the base name to construct folder and file names.
+    folder_path = f"pieces_{base_name}"
     
     # Extract edges and compute compatibility
     edge_signatures, edge_to_piece_map, image_files = extract_edges_from_pieces(folder_path)
+    save_edge_to_piece_map(edge_to_piece_map, file_path=f"{root_eval}/{image_name}_edge_to_piece_map.json")
     compatibility_matrix = compute_compatibility_matrix(edge_signatures)
-
-    # Save and display results
-    np.savetxt("edge_compatibility_matrix.csv", compatibility_matrix, delimiter=",", fmt="%.4f")
+    np.savetxt(f"{root_eval}/{base_name}_edge_compatibility_matrix.csv", compatibility_matrix, delimiter=",", fmt="%.4f")
 
     print("Edge-to-Piece Mapping:", edge_to_piece_map)
     print("Edge Compatibility Matrix:\n", compatibility_matrix)
     
-    
-    
 
+# ---------- Edge Compatibility Helper (using precomputed Compatibility Matrix) ----------
+def load_compatibility_matrix(root_eval, img_name):
+    csv_file = os.path.join(root_eval, f"{img_name}_edge_compatibility_matrix.csv")
+    return np.loadtxt(csv_file, delimiter=',')
 
+# compatibility_matrix = load_compatibility_matrix("Datasets/edge_compatibility.csv")
 
-
-def get_piece_edges_and_scores(piece_id, edge_to_piece_map, compatibility_matrix):
-    """
-    Given a piece_id, find all its associated edges and their compatibility scores.
-    
-    Params:
-        piece_id (int): The piece ID to look up.
-        edge_to_piece_map (dict): Maps edge ID to (piece ID, edge index).
-        compatibility_matrix (np.array): The edge compatibility matrix.
-
-    Returns:
-        dict: {edge_id: { "edge_index": edge_index, "scores": { other_edge: score } } }
-    """
-    # Find all edge IDs that belong to the given piece_id
-    piece_edges = {edge_id: edge_idx for edge_id, (pid, edge_idx) in edge_to_piece_map.items() if pid == piece_id}
-
-    # Store scores for each edge
-    edge_scores = {}
-    for edge_id in piece_edges:
-        scores = {other_edge: compatibility_matrix[edge_id, other_edge] for other_edge in range(len(compatibility_matrix))}
-        edge_scores[edge_id] = {"edge_index": piece_edges[edge_id], "scores": scores}
-
-    return edge_scores
+#TODO: dynamic load for path_to_comp_matrix
 
 # Example usage:
-piece_id_to_search = 3  # Change this to the piece ID you want to search for
-edges_and_scores = get_piece_edges_and_scores(piece_id_to_search, edge_to_piece_map, compatibility_matrix)
+# piece_id_to_search = 3  # Change this to the piece ID you want to search for
+#edges_and_scores = get_piece_edges_and_scores(piece_id_to_search, edge_to_piece_map, compatibility_matrix)
 
 # Print results
-for edge_id, data in edges_and_scores.items():
-    print(f"Edge {edge_id} (Edge Index {data['edge_index']}) has compatibility scores:")
-    sorted_scores = sorted(data["scores"].items(), key=lambda x: -x[1])[:5]  # Show top 5 matches
-    for other_edge, score in sorted_scores:
-        print(f"  → Edge {other_edge}: Score {score:.4f}")
-    print()
-    
-    
+#for edge_id, data in edges_and_scores.items():
+    #print(f"Edge {edge_id} (Edge Index {data['edge_index']}) has compatibility scores:")
+    #sorted_scores = sorted(data["scores"].items(), key=lambda x: -x[1])[:5]  # Show top 5 matches
+    #for other_edge, score in sorted_scores:
+       # print(f"  → Edge {other_edge}: Score {score:.4f}")
+    #print()
+
 def are_edges_adjacent(assembly_state, piece_1, edge_idx_1, piece_2, edge_idx_2):
     """
     Checks if two edges belong to adjacent pieces in the current assembly.
@@ -370,7 +405,14 @@ def are_edges_adjacent(assembly_state, piece_1, edge_idx_1, piece_2, edge_idx_2)
     return False
 
 
-def evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility):
+#TODO: dynamic naming for any image
+# edge_signatures, edge_to_piece_map, image_files = extract_edges_from_pieces(folder_path)
+#file_path=f"Datasets/evaluation/{folder_path}_edge_to_piece_map.json"
+#load_edge_to_piece_map(file_path="Datasets/evaluation/{image_name}_edge_to_piece_map.json")
+# folder_path = "pieces_img_2"
+# image_name = "img_2"
+
+def evaluate_assembly_compatibility(assembly_state, image_name):
     """
     Evaluates the overall edge compatibility of the current puzzle assembly.
 
@@ -382,6 +424,14 @@ def evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_comp
     Returns:
         float: Overall compatibility score of the assembled pieces.
     """
+    path_to_edge_compatibility = f"{root_eval}/{image_name}_edge_compatibility_matrix.csv"
+    
+    # Load edge_to_piece_map
+    edge_to_piece_map = load_edge_to_piece_map(root_eval, image_name)
+    
+    # Load precomputed compat matrix
+    comp_matrix = load_compatibility_matrix(root_eval, image_name)
+    
     total_score = 0.0
     num_connections = 0
 
@@ -390,8 +440,212 @@ def evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_comp
             if piece_1 != piece_2:  # Avoid self-matching
                 if are_edges_adjacent(assembly_state, piece_1, edge_idx_1, piece_2, edge_idx_2):
                     # Get compatibility score from matrix
-                    score = edge_compatibility[edge_id_1, edge_id_2]
+                    score = comp_matrix[edge_id_1, edge_id_2]
                     total_score += score
                     num_connections += 1
 
     return total_score / max(num_connections, 1)  # Avoid division by zero
+
+# ---------- Image Similarity Helper ----------
+
+import torch
+import numpy as np
+
+def load_eval_image(root_eval, img_name):
+    """
+    Load the evaluation image from the given root directory and image name.
+    
+    Parameters:
+        root_eval (str): The root directory where the evaluation images are stored.
+        img_name (str): The name of the evaluation image file (e.g., "img_2_evaluate.png").
+    
+    Returns:
+        np.array: The loaded image in RGB format.
+        
+    Raises:
+        FileNotFoundError: If the image cannot be loaded.
+    """
+    file_path = os.path.join(root_eval, f"{image_name}_evaluate.png")
+    target_img = cv2.imread(file_path)
+    if target_img is None:
+        raise FileNotFoundError(f"Could not load image from {file_path}")
+    
+    # Convert the image from BGR (OpenCV default) to RGB.
+    target_img = cv2.cvtColor(target_img, cv2.COLOR_BGR2RGB)
+    return target_img
+
+#TODO move pygame function to a differet file?
+#TODO assume render in game_agent, MCTS, Trainer, and Train is ON by default
+# only box is true by default
+def render_state_to_image(state, use_screen=True, only_box=True):
+    """
+    Render the current puzzle state to an image array.
+    If use_screen is True and a Pygame display surface exists, capture the current screen.
+    Otherwise, render the state off-screen to a new surface.
+    
+    Parameters:
+        state: The current puzzle state.
+        use_screen (bool): Whether to capture the current display surface.
+        only_box (bool): If True, return only the region inside the grey solution box.
+        
+    Returns:
+        A NumPy array representing the rendered area (in RGB).
+    """
+    if use_screen:
+        screen = pygame.display.get_surface()
+        if screen is not None:
+            # Capture the entire screen.
+            img_array = pygame.surfarray.array3d(screen)
+            img_array = np.transpose(img_array, (1, 0, 2))
+            if only_box:
+                img_array = img_array[BOX_Y:BOX_Y+BOX_HEIGHT, BOX_X:BOX_X+BOX_WIDTH, :]
+            return img_array
+
+    # Off-screen rendering:
+    offscreen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+    offscreen.fill(BG_COLOR)
+    pygame.draw.rect(offscreen, BG_COLOR, (BOX_X, BOX_Y, BOX_WIDTH, BOX_HEIGHT))
+    for piece in state.pieces.values():
+        piece.draw(offscreen)
+    
+    # Convert to NumPy array.
+    img_array = pygame.surfarray.array3d(offscreen)
+    img_array = np.transpose(img_array, (1, 0, 2))
+    
+    if only_box:
+        # Crop to the solution box region.
+        img_array = img_array[BOX_Y:BOX_Y+BOX_HEIGHT, BOX_X:BOX_X+BOX_WIDTH, :]
+    
+    return img_array
+        
+
+def resize_to_match(img1, img2):
+    """
+    Ensure that two images have the same dimensions.
+    
+    Parameters:
+        img1 (np.array): First image (shape: (H, W, C) or (H, W)).
+        img2 (np.array): Second image (shape: (H, W, C) or (H, W)).
+        
+    Returns:
+        tuple: (resized_img1, resized_img2) where both images have the same (height, width).
+    
+    The smaller image (by total area) is resized to match the larger image's dimensions.
+    If the images already have the same dimensions, they are returned unchanged.
+    """
+    # Get dimensions of both images.
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+    
+    # If the dimensions are already the same, return the images as is.
+    if (h1, w1) == (h2, w2):
+        return img1, img2
+    
+    # Compute total area for each image.
+    area1 = h1 * w1
+    area2 = h2 * w2
+    
+    if area1 < area2:
+        # Resize img1 to match img2 dimensions.
+        resized_img1 = cv2.resize(img1, (w2, h2))
+        return resized_img1, img2
+    else:
+        # Resize img2 to match img1 dimensions.
+        resized_img2 = cv2.resize(img2, (w1, h1))
+        return img1, resized_img2
+
+#TODO: later implement a choice of metrics between MSE vs SSIM
+# SSIM is considered more perceptually relevant than metrics like Mean Squared Error (MSE)
+def compute_similarity_score(current_img, target_img):
+    """
+    Compute a similarity score between the current assembly image and the target image using SSIM.
+    
+    SSIM returns a value between -1 and 1 (where 1 is perfect similarity). 
+    For our purposes, we return the SSIM score directly.
+    
+    Parameters:
+        current_img (np.array): The current state image (RGB).
+        target_img (np.array): The target evaluation image (RGB).
+    
+    Returns:
+        float: The SSIM similarity score.
+    """
+    # Ensure that both images are numpy arrays.
+    current_img = np.asarray(current_img)
+    target_img = np.asarray(target_img)
+    
+    # Resize if needed
+    current_img, target_img = resize_to_match(current_img, target_img)
+    
+    # Convert current_img to uint8 if it is not already.
+    if current_img.dtype != np.uint8:
+        # Normalize if necessary.
+        if current_img.max() <= 1.0:
+            current_img = (current_img * 255).astype(np.uint8)
+        else:
+            current_img = current_img.astype(np.uint8)
+
+    # Convert target_img to uint8 if it is not already.
+    if target_img.dtype != np.uint8:
+        if target_img.max() <= 1.0:
+            target_img = (target_img * 255).astype(np.uint8)
+        else:
+            target_img = target_img.astype(np.uint8)
+            
+    # Compute SSIM with multichannel=True so that the comparison is done on all color channels.
+    # Determine an appropriate win_size.
+    # SSIM requires win_size to be an odd value less than or equal to the smallest dimension.
+    min_side = min(current_img.shape[0], current_img.shape[1])
+    if min_side < 7:
+        # If the image is smaller than 7 pixels, use the largest odd number not exceeding min_side.
+        win_size = min_side if min_side % 2 == 1 else min_side - 1
+    else:
+        win_size = 7
+        
+    score, _ = ssim(current_img, target_img, win_size=win_size, channel_axis=-1, full=True)
+    return score
+
+# load target image
+# cur state = render_state_to_image
+# compute (cur, target)
+def extract_visual_features(state, img_name):
+    """
+    Compute visual features for the value network from the current state.
+    
+    Features include:
+      1. Visual similarity score between the current state image and the target image.
+      2. Overall edge compatibility score using evaluate_assembly_compatibility.
+      
+    Parameters:
+        state: The current puzzle state.
+        edge_compatibility: Precomputed edge compatibility matrix.
+        img_name: name of original image
+        
+    Returns:
+        A list of features [similarity_score, edge_score].
+    """
+    # Render current state to an image.
+    current_img = render_state_to_image(state, use_screen=True, only_box=True)
+    
+    # Load target image.
+    target_img = load_eval_image(root_eval, img_name)
+    
+    # Compute visual similarity.
+    similarity_score = compute_similarity_score(current_img, target_img)
+    
+    # Load edge to piece map
+    edge_to_piece_map = load_edge_to_piece_map(root_eval, img_name)
+    
+    # Build a simple assembly representation.
+    """
+    assembly_state = {}
+    for pid, piece in state.pieces.items():
+        # Assume each piece has attributes x, y, and possibly orientation (defaulting to 0).
+        orientation = getattr(piece, 'orientation', 0)
+        assembly_state[pid] = (piece.x, piece.y, orientation)
+    """
+    
+    # Compute overall edge compatibility using your function.
+    edge_score = evaluate_assembly_compatibility(state.assembly, img_name)
+    
+    return [similarity_score, edge_score]

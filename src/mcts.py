@@ -8,11 +8,18 @@ import math
 import pdb
 import time
 import argparse
+import json
 
 from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves
 from env import initialize_state
 from models import PolicyNetwork, ValueNetwork
 from env import get_dimensions
+
+#TODO: move paths into a seperate yaml file
+from env import image_name
+
+from utils_features import evaluate_assembly_compatibility, extract_visual_features
+#evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility)
 
 # Constants (set these appropriately)
 MAX_SIM_DEPTH = 10
@@ -20,14 +27,6 @@ TIME_PER_MOVE = 1.0
 MCTS_ITERATIONS = 100
 COMPATIBILITY_THRESHOLD = 0.5
 C = 1.0  # Exploration constant
-
-
-# Get dimensions dynamically from env.py
-state_dim, action_dim, visual_dim = get_dimensions()
-
-# Create the models (initially untrained)
-policy_model = PolicyNetwork(state_dim, action_dim)
-value_model = ValueNetwork(state_dim, visual_dim)
 
 
 # --- Neural Network Helper Functions (Using PyTorch) ---
@@ -42,7 +41,7 @@ def convert_state_to_tensor(state):
     state_tensor = torch.tensor(flat_state, dtype=torch.float32).unsqueeze(0)
     return state_tensor
 
-def policy_network_forward(state):
+def policy_network_forward(state, policy_model):
     """
     Convert the state into a tensor representation and pass it through the PyTorch policy model.
     Returns a probability distribution over valid actions.
@@ -57,15 +56,20 @@ def policy_network_forward(state):
 # Histogram comparison or SSIM scores between assembled and target images.
 #  can compute these features inside env.py using OpenCV or other methods.
 
-def value_network_forward(state, visual_features):
+# Extract visual features; this returns a list, e.g. [similarity_score, edge_score]
+def value_network_forward(state, value_model):
     """
     Convert the state into a tensor and return the predicted state value.
-    Now includes visual features.
+    Visual features (e.g., img similarity and edge compatibility scores) are passed as a second input.
     """
     state_tensor = convert_state_to_tensor(state)
+    
+    visual_features = extract_visual_features(state, image_name)
+    
     visual_tensor = torch.tensor(visual_features, dtype=torch.float32).unsqueeze(0)
 
     value = value_model(state_tensor, visual_tensor)  # Updated to pass both inputs
+    
     return value.item()
 
 
@@ -79,7 +83,7 @@ class Node:
         self.visits = 0         # Number of visits
         self.total_reward = 0   # Total reward accumulated
 
-def selection(node):
+def selection(node, policy_model):
     """
     Traverse the tree starting at 'node' using a variant of PUCT until a leaf is reached.
     Uses the policy network for prior probabilities and a UCB-like formula.
@@ -90,8 +94,8 @@ def selection(node):
         for child in node.children:
             # UCB formula with policy prior: Q + C * pi * sqrt(N_parent) / (1 + N_child)
             # For illustration, we assume a uniform prior (or you could use policy_network)
-            pi = 1.0 / len(node.children)
-            # pi = policy_network_forward(child.parent.state)[child.action]  # pseudo-access; adjust as needed
+            # pi = 1.0 / len(node.children)
+            pi = policy_network_forward(child.parent.state, policy_model)[child.action]  # pseudo-access; adjust as needed
             ucb_score = (child.total_reward / (child.visits + 1e-5) +
                          C * pi * (math.sqrt(node.visits) / (1 + child.visits)))
             if ucb_score > best_score:
@@ -115,7 +119,7 @@ def expansion(node):
     return random.choice(node.children) if node.children else node
 
 # Pass visual features into value_network_forward() for evaluation.
-def simulation(state, max_depth=MAX_SIM_DEPTH):
+def simulation(state, policy_model, value_model, max_depth=MAX_SIM_DEPTH):
     """
     Simulate the outcome starting from 'state' until a terminal state or depth cutoff.
     At each step, use the policy network to sample an action (the actor) and compute the intermediate reward.
@@ -131,12 +135,12 @@ def simulation(state, max_depth=MAX_SIM_DEPTH):
             break
         
         # Get the probability distribution from the policy network.
-        policy_probs = policy_network_forward(current_state)  # Shape: (1, action_dim)
+        policy_probs = policy_network_forward(current_state, policy_model)  # Shape: (1, action_dim)
         
         # For each valid action, map it to an index (make sure your action_to_index function is consistent).
         valid_action_probs = []
         for action in actions:
-            idx = action_to_index(action)
+            idx = action_to_index(state, action)
             # Get the probability from the network. We assume the network outputs probabilities in a tensor.
             valid_action_probs.append(policy_probs[0, idx].item())
             
@@ -161,7 +165,8 @@ def simulation(state, max_depth=MAX_SIM_DEPTH):
     # If simulation ended before reaching a terminal state, boost using the value network
     # approximate future rewards that the simulation didn’t cover.
     if not is_terminal(current_state):
-        cumulative_reward += value_network_forward(current_state)
+        cumulative_reward += value_network_forward(current_state, value_model)
+    
     return cumulative_reward
 
 def backpropagation(node, reward):
@@ -175,12 +180,12 @@ def backpropagation(node, reward):
         
         
 #TODO edit render_fn = render_state, edit redit_state from mcts.py or game_agent.py (should be only one function, unite)
-def MCTS(root_state, iterations=100, render=False, render_fn=None):
+def MCTS(root_state, policy_model, value_model, iterations=100, render=False, render_fn=None):
     root = Node(root_state)
     for i in range(iterations):
-        leaf = selection(root)
+        leaf = selection(root, policy_model)
         expanded = expansion(leaf)
-        reward = simulation(expanded.state)
+        reward = simulation(expanded.state, policy_model, value_model)
         backpropagation(expanded, reward)
         
         # If rendering is enabled, call the rendering function with the current state.
@@ -207,8 +212,90 @@ def update_assembly(assembly, action):
     return assembly
 
 #TODO add params for visual checking
+
+#TODO dynamic filename
+def load_puzzle_centroids(filename="Datasets/puzzle_centroids.json"):
+    """
+    Load puzzle centroids from a JSON file.
+    
+    Returns a dictionary mapping piece IDs (as integers) to (x, y) coordinates.
+    """
+    with open(filename, "r") as f:
+        data = json.load(f)
+    
+    centroids = {}
+    for piece in data.get("pieces", []):
+        pid_str = piece.get("id", "")
+        if pid_str.startswith("piece_"):
+            try:
+                pid = int(pid_str.split("_")[1])
+            except ValueError:
+                continue
+        else:
+            continue
+        
+        centroid = piece.get("centroid", {})
+        x = centroid.get("x")
+        y = centroid.get("y")
+        if x is not None and y is not None:
+            centroids[pid] = (x, y)
+    return centroids
+
+def is_piece_correctly_assembled(state, piece_id, centroids, tolerance=10):
+    """
+    Check if the piece with the given piece_id is placed correctly,
+    by comparing its current position with the target centroid (from the JSON file).
+    
+    Parameters:
+      - state: The current state (which contains a dictionary state.pieces mapping piece IDs to Piece objects).
+      - piece_id: The ID of the piece to check (as an integer).
+      - tolerance: Maximum allowed Euclidean distance (in pixels) between the piece's current position and its target.
+      
+    Returns:
+      True if the piece is within tolerance of its target position, False otherwise.
+    """
+    target = centroids.get(piece_id)
+    if target is None:
+        raise ValueError(f"No centroid found for piece {piece_id}")
+    
+    piece = state.pieces.get(piece_id)
+    if piece is None:
+        raise ValueError(f"Piece {piece_id} not found in state")
+    
+    current_pos = (piece.x, piece.y)
+    dx = current_pos[0] - target[0]
+    dy = current_pos[1] - target[1]
+    distance = (dx**2 + dy**2) ** 0.5
+    
+    return distance <= tolerance
+
+"""def generate_candidate_moves(max_dx, max_dy, step=1, exclude_zero=True):
+    Generate all integer (dx, dy) movement vectors where:
+      - dx is in [-max_dx, max_dx], stepping by `step`
+      - dy is in [-max_dy, max_dy], stepping by `step`
+    If exclude_zero is True, (0,0) will be omitted (since it doesn't move).
+    
+    For example:
+        generate_candidate_moves(5, 5, step=1)
+      returns all (dx, dy) with dx, dy in [-5..5], excluding (0,0).
+    
+    Parameters:
+        max_dx (int): Maximum displacement in the x direction (positive or negative).
+        max_dy (int): Maximum displacement in the y direction (positive or negative).
+        step (int): Step size for enumerating dx and dy.
+        exclude_zero (bool): If True, exclude the (0,0) move.
+        
+    Returns:
+        list of (int, int): The list of all possible candidate movement vectors.
+    moves = []
+    for dx in range(-max_dx, max_dx + 1, step):
+        for dy in range(-max_dy, max_dy + 1, step):
+            if exclude_zero and dx == 0 and dy == 0:
+                continue
+            moves.append((dx, dy))
+    return moves"""
 #TODO add params for just basic assembly
-def compute_intermediate_reward(state, action, time_penalty, mode='visual'):
+def compute_intermediate_reward(state, action, time_penalty, mode='assembly'):
     """
     Compute the immediate reward for taking an action.
     Two possible reward schemes:
@@ -236,7 +323,12 @@ def compute_intermediate_reward(state, action, time_penalty, mode='visual'):
     if mode == 'assembly':
         # For example, check if the piece lands in its correct cell.
         # You might have a helper function that returns True/False if piece is correctly assembled.
-        if is_piece_correctly_assembled(state, action.piece_id):
+        
+        #TODO: default = Datasets/puzzle_centroids.json for pieces_img_2
+        centroids = load_puzzle_centroids() 
+        tolerance = 10 #TODO: define this in env.py instead
+        
+        if is_piece_correctly_assembled(state, action.piece_id, centroids, tolerance): 
             # Give a positive reward if correctly assembled (you can tune this value)
             reward = 1.0 - time_penalty
         else:
@@ -246,10 +338,13 @@ def compute_intermediate_reward(state, action, time_penalty, mode='visual'):
     else:
         raise ValueError("Invalid mode. Choose 'visual' or 'assembly'.")
 
+    """_summary_
+    """
+
 
 # --- Conversions ---
 #TODO allow for unfixed candidate moves
-def action_to_index(action):
+def action_to_index(state, action):
     """
     Map an action (which contains a piece_id and a movement vector (dx, dy))
     to a unique index in the policy network's output.
@@ -267,11 +362,11 @@ def action_to_index(action):
     The action index is computed as:
        index = (piece_id - 1) * len(candidate_moves) + move_index
     """
-    candidate_moves = [(-5, 0), (-4, 0), (-3, 0), 
-                       (0, -5), (0, -4), (0, -3),
-                       (3, 0),  (4, 0),  (5, 0),
-                       (0, 3),  (0, 4),  (0, 5)]
-    
+    candidate_moves = possible_moves(state)
+    #candidate_moves = [(-5, 0), (-4, 0), (-3, 0), 
+    #                       (0, -5), (0, -4), (0, -3),
+      #                     (3, 0),  (4, 0),  (5, 0),
+      #                     (0, 3),  (0, 4),  (0, 5)]
     try:
         move_index = candidate_moves.index((action.dx, action.dy))
     except ValueError:
@@ -286,16 +381,6 @@ def action_to_index(action):
 
 
 #TODO evaluate edges function
-# --- Reward and Evaluation Functions ---
-def compute_edge_compatibility(state, action):
-    """
-    Evaluate how well the edges of the piece selected by 'action'
-    will match with its neighbors in the current 'state'.
-    Returns a score (e.g., between 0 and 1).
-    """
-    # Could use differential invariant signatures, compatibility matrix, etc.
-    score = evaluate_edges(state, action)  # user-defined evaluation function
-    return score
 
 
 # --- PyGame Rendering ---

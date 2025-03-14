@@ -4,6 +4,24 @@ import os
 import pygame
 import random
 import time
+import json
+
+# --- Filepath definitions ---
+#TODO: make image_name dynamic hardcoding
+image_name = "img_2"
+
+# Build the file path to your JSON file.
+#TODO change img_name to dynamic 
+params_folder = "params"
+img_name = "img_2"  # or derive from your original image path
+param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
+#pieces_path = os.path.join(f"pieces_{img_name}") TODO - change this to puzzle_pieces/pieces_{image_name}
+
+root_eval = "Datasets/evaluation"
+#root = "Datasets"
+pieces_folder = f"pieces_{img_name}"
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+pieces_path = os.path.join(project_root, pieces_folder)
 
 
 # --- Piece Class ---
@@ -51,8 +69,9 @@ class Piece:
         surface.blit(self.image, (self.x, self.y))
     """
     
-def load_puzzle_pieces(pieces_folder):
-    """Load puzzle pieces from the specified folder with random initial positions."""
+"""def load_puzzle_pieces(pieces_folder):
+    #Load puzzle pieces from the specified folder with random initial positions.
+    
     global BOX_WIDTH, BOX_HEIGHT
 
     pieces_dict = {}
@@ -96,23 +115,73 @@ def load_puzzle_pieces(pieces_folder):
         except Exception as e:
             print(f"Error loading piece {piece_file}: {e}")
     print(f"Successfully loaded {len(pieces_dict)} pieces")
-    return pieces_dict
+    return pieces_dict"""
+
+def load_puzzle_pieces(pieces_folder):
+    """
+    Load puzzle pieces from the specified folder with random initial positions.
     
+    Returns:
+        dict: Mapping from piece_id to Piece objects.
+    """
+    pieces_dict = {}
+    
+    # Determine the absolute path to the pieces folder.
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    pieces_path = os.path.join(project_root, pieces_folder)
+    
+    if not os.path.exists(pieces_path):
+        print(f"Error: Pieces folder '{pieces_path}' not found!")
+        return {}
+    
+    piece_files = [f for f in os.listdir(pieces_path) if f.lower().endswith('.png')]
+    if not piece_files:
+        print(f"Error: No PNG files found in '{pieces_path}'")
+        return {}
+    
+    # Sort files assuming filenames like "piece_1.png", "piece_2.png", etc.
+    piece_files.sort(key=lambda x: int(x.split('_')[1].split('.')[0]))
+    print(f"Loading {len(piece_files)} puzzle pieces")
+    
+    start_x_range = (50, SCREEN_WIDTH - 150)
+    start_y_range = (50, SCREEN_HEIGHT - 150)
+    
+    for i, piece_file in enumerate(piece_files):
+        try:
+            piece_path = os.path.join(pieces_path, piece_file)
+            image = pygame.image.load(piece_path).convert_alpha()
+            
+            # Generate a random starting position.
+            start_x = random.randint(*start_x_range)
+            start_y = random.randint(*start_y_range)
+            # Regenerate if the position falls within (or too close to) the grey solution box.
+            while (BOX_X - 5 <= start_x <= BOX_X + BOX_WIDTH + 5) and (BOX_Y - 5 <= start_y <= BOX_Y + BOX_HEIGHT + 5):
+                start_x = random.randint(*start_x_range)
+                start_y = random.randint(*start_y_range)
+            
+            piece = Piece(piece_id=i+1, image=image, x=start_x, y=start_y)
+            pieces_dict[piece.id] = piece
+        except Exception as e:
+            print(f"Error loading piece {piece_file}: {e}")
+    print(f"Successfully loaded {len(pieces_dict)} pieces")
+    return pieces_dict
     
     
 # --- State Class ---
 class State:
-    def __init__(self, pieces, assembly, unplaced_pieces, edge_info):
+    def __init__(self, pieces, assembly, unplaced_pieces): #TODO: removed edge_info for now, discuss with group
         """
         pieces: dict mapping piece_id to Piece objects (used for rendering and simulation)
         assembly: a 2D array (or any structure) representing the current puzzle assembly
         unplaced_pieces: a list (or set) of piece IDs not yet placed
-        edge_info: any additional data about piece compatibility
+        *edge_info: any additional data about piece compatibility - unused for now
         """
         self.pieces = pieces # dict mapping piece_id -> Piece object
         self.assembly = assembly
+        #self.unplaced_pieces = set(pieces.keys())
+        #TODO change this from list to set
         self.unplaced_pieces = unplaced_pieces
-        self.edge_info = edge_info
+        #self.edge_info = edge_info
         self.time_elapsed = 0  # Can track steps or elapsed time
     
     #TODO
@@ -125,8 +194,8 @@ class State:
         new_pieces = {pid: piece.copy() for pid, piece in self.pieces.items()}
         new_assembly = np.copy(self.assembly)  # Assuming assembly is a NumPy array.
         new_unplaced = self.unplaced_pieces.copy()
-        new_edge_info = copy.deepcopy(self.edge_info)
-        new_state = State(new_pieces, new_assembly, new_unplaced, new_edge_info)
+        #new_edge_info = copy.deepcopy(self.edge_info)
+        new_state = State(new_pieces, new_assembly, new_unplaced)
         new_state.time_elapsed = self.time_elapsed
         return new_state
     
@@ -145,7 +214,7 @@ class State:
 
 # --- Action Class ---
 class Action:
-    def __init__(self, piece_id, delta_x, delta_y):
+    def __init__(self, piece_id, dx, dy):
         """
         Represents an action that moves a piece.
         piece_id: ID of the piece to move.
@@ -153,13 +222,13 @@ class Action:
         orientation_change: (optional) change in orientation.
         """
         self.piece_id = piece_id
-        self.delta_x = delta_x
-        self.delta_y = delta_y
+        self.dx = dx
+        self.dy = dy
         #self.orientation_change = orientation_change
     
     def __repr__(self):
         # dθ={self.orientation_change}
-        return f"Action(piece_id={self.piece_id}, dx={self.delta_x}, dy={self.delta_y})"
+        return f"Action(piece_id={self.piece_id}, dx={self.dx}, dy={self.dy})"
     
     
 # ----- Environment Dynamics -----
@@ -167,31 +236,23 @@ def apply_action(state, action):    #i.e, Transitions
     new_state = state.copy()  # Make a copy for safety in search
     if action.piece_id in new_state.pieces:
         piece = new_state.pieces[action.piece_id]
-        piece.update_position(action.delta_x, action.delta_y)
+        piece.update_position(action.dx, action.dy)
         #piece.orientation += action.orientation_change
     # Optionally update assembly or unplaced_pieces if the piece is placed.
     if action.piece_id in new_state.unplaced_pieces:
         new_state.unplaced_pieces.remove(action.piece_id)
-    new_state.update_edge_info()
+    #new_state.update_edge_info()
     new_state.time_elapsed += 1  # or whatever time increment you use
     return new_state
 
 # ----- Helper Functions for Game State (W/o Render) -----
-#TODO: make image_name dynamic hardcoding
-image_name = "img_2"
-import json
-import os
-
-# Build the file path to your JSON file.
-#TODO change img_name to dynamic 
-params_folder = "params"
-img_name = "img_2"  # or derive from your original image path
-param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
 
 # Load the JSON file.
 with open(param_file_path, 'r') as f:
     data = json.load(f)
 
+
+# ----------- Constants from image_params.JSON -----------
 # Now you can grab any value from the JSON.
 image_path = data["Image"]
 original_dims = data["Original dimensions"]
@@ -206,6 +267,7 @@ BOX_HEIGHT = data["BOX_HEIGHT"]
 SCREEN_WIDTH = data["SCREEN_WIDTH"]
 SCREEN_HEIGHT = data["SCREEN_HEIGHT"]
 command = data["Command"]
+BG_COLOR = (240, 240, 240)
 
 #print("Image:", image_path)
 #print("Original dimensions:", original_dims)
@@ -249,11 +311,11 @@ def valid_actions(state):
     Perform early pruning based on edge compatibility.
     """
     actions = []
-    for piece in state.unplaced_pieces:
-        for movement in possible_moves():       # e.g., candidate movement vectors
+    for piece_id in state.unplaced_pieces:
+        for movement in possible_moves(state):       # e.g., candidate movement vectors
             #for layer_op in possible_layer_ops():    # e.g., operations affecting layering
             #   action = Action(piece.id, movement, layer_op)
-            action = Action(piece.id, movement)
+            action = Action(piece_id, movement[0], movement[1])
             # Lightweight early pruning: only add if compatibility passes a threshold
             # SKIP FOR NOW - dont want actor to have priviledged info about edges
             # if compute_edge_compatibility(state, action) >= COMPATIBILITY_THRESHOLD:
@@ -276,7 +338,8 @@ def is_terminal(state):
     return True
     """
     # naive solution, move all of them once
-    if state.unplaced_pieces == []:
+    # state.unplaced_piece is a set
+    if not(state.unplaced_pieces):
         return True
     else:
         return False
@@ -290,13 +353,16 @@ def create_initial_assembly():
     puzzle_size = (xn, yn)  # use xn and yn from JSON
     return np.zeros(puzzle_size, dtype=np.int32)  # Empty puzzle representation
 
+#TODO - a different load_puzzle_pieces
+"""
 def load_puzzle_pieces():
-    """
+ 
     Loads puzzle pieces (could be from a dataset or predefined list).
     Each piece might have an ID, edges, and other properties.
-    """
+
     # total_pieces from JSON
     return [{"id": i, "edges": None} for i in range(1, total_pieces + 1)]
+"""
 
 def initialize_edge_info():
     """
@@ -305,19 +371,39 @@ def initialize_edge_info():
     """
     return np.random.rand(25, 4)  # Example: 25 pieces with 4 edge values each
 
-def initialize_state():
-    """
-    Set up the initial state of the puzzle.
-    """
-    assembly = create_initial_assembly()          # a zero matrix with dimensions based on puzzle specs
-    unplaced_pieces = load_puzzle_pieces()          # load puzzle pieces
-    edge_info = initialize_edge_info()              # compute or load initial edge compatibility info
-    return State(assembly, unplaced_pieces, edge_info)
-
-
 #TODO
 def reset():
-    pass
+        # Properly initialize and return a State object.
+        state = initialize_state(pieces_folder, xn, yn)
+        return state
+
+def initialize_state(pieces_folder, grid_rows, grid_cols):
+    """
+    Initialize the puzzle state.
+
+    Parameters:
+      - pieces_folder: Folder path containing puzzle piece images (or data).
+      - grid_rows: Number of rows in the puzzle grid.
+      - grid_cols: Number of columns in the puzzle grid.
+
+    Returns:
+      A State object with:
+        - pieces: Loaded pieces (dict mapping piece_id to Piece objects).
+        - assembly: A 2D NumPy array (of zeros) representing the initial empty assembly.
+        - unplaced_pieces: A set of all piece IDs (since nothing is placed initially).
+    """
+    # Load pieces from the folder. Assume load_puzzle_pieces returns a dict {piece_id: Piece, ...}
+    pieces = load_puzzle_pieces(pieces_folder)
+    
+    # Create an assembly array. Adjust the shape as needed.
+    assembly = np.zeros((grid_rows, grid_cols))
+    
+    # Initially, all pieces are unplaced. Create a set of all piece IDs.
+    unplaced_pieces = set(pieces.keys())
+    
+    # Create and return the initial state.
+    state = State(pieces, assembly, unplaced_pieces)
+    return state
 
 # Define dimensions based on environment data
 def get_dimensions():
@@ -331,16 +417,16 @@ def get_dimensions():
         state_dim (int), action_dim (int), visual_dim (int)
     """
     # Initialize a sample state from the environment
-    sample_state = initialize_state()
+    sample_state = initialize_state(pieces_path, xn, yn)
 
     # Compute state dimension: Flattened representation of the state
-    state_dim = sample_state.assembly.flatten().shape[0]  # Assuming 'assembly' is a NumPy array
+    state_dim = 30  # Assuming 'assembly' is a NumPy array
 
     # Compute action dimension: Count the total number of valid actions for a sample state
     sample_actions = valid_actions(sample_state)
-    action_dim = len(sample_actions) if sample_actions else 10  # Fallback if empty
+    action_dim = xn* yn * len(sample_actions) if sample_actions else 10  # Fallback if empty
 
     # Compute visual feature dimension: Adjust based on extracted visual features
-    visual_dim = 50  # Example, could be edge matching, SSIM similarity, etc.
-
+    visual_dim = 128  # Example, could be edge matching, SSIM similarity, etc.
+    print(state_dim, action_dim, visual_dim)
     return state_dim, action_dim, visual_dim

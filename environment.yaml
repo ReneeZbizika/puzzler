@@ -16,6 +16,7 @@ dependencies:
   - tqdm  # For progress bars
   - ipython  # Useful for debugging
   - glob2
+  - scikit-image
   - pip:
       #- gymnasium[extra]  # Installs extra dependencies for visualization, no longer supported
       - stable-baselines3  # If you want RL algorithms pre-implemented
