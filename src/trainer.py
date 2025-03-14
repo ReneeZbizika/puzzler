@@ -5,6 +5,7 @@ import numpy
 import matplotlib as plt
 import pygame
 import torch.nn.functional as F
+import datetime
 
 import env
 from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
@@ -30,13 +31,39 @@ GAMMA = 0.99  # Standard discount factor for reinforcement learning
 # Add a constant for max steps per epoch
 MAX_STEPS_PER_EPOCH = 100
 
-def load_models(policy_model, value_model, save_path, epoch):
-    """Load saved models from checkpoint."""
-    policy_model.load_state_dict(torch.load(f"{save_path}/policy_epoch_{epoch}.pth"))
-    value_model.load_state_dict(torch.load(f"{save_path}/value_epoch_{epoch}.pth"))
-    print(f"Loaded models from {save_path}/policy_epoch_{epoch}.pth and value_epoch_{epoch}.pth")
+def load_models(policy_model, value_model, save_path, epoch=None):
+    """
+    Load saved models from checkpoint.
+    If epoch is None, loads the best model according to best_model.txt
+    """
+    if epoch is None:
+        # Try to load best model
+        best_model_path = f"{save_path}/best_model.txt"
+        if os.path.exists(best_model_path):
+            with open(best_model_path, 'r') as f:
+                best_info = f.read().strip().split('\n')
+                best_epoch = int(best_info[0].split(':')[1].strip())
+                best_reward = float(best_info[1].split(':')[1].strip())
+                print(f"Loading best model from epoch {best_epoch} with reward {best_reward}")
+                epoch = best_epoch
+        else:
+            print("No best model found. Starting with fresh models.")
+            return False
     
-#load_models(policy_model, value_model, "checkpoints", epoch=50)
+    # Load the specified model
+    policy_path = f"{save_path}/policy_epoch_{epoch}.pth"
+    value_path = f"{save_path}/value_epoch_{epoch}.pth"
+    
+    if os.path.exists(policy_path) and os.path.exists(value_path):
+        policy_model.load_state_dict(torch.load(policy_path))
+        value_model.load_state_dict(torch.load(value_path))
+        print(f"Loaded models from epoch {epoch}")
+        print(f"  - Policy: {policy_path}")
+        print(f"  - Value: {value_path}")
+        return True
+    else:
+        print(f"Could not find model files for epoch {epoch}")
+        return False
 
 #TODO: mcts_target_policy
 def mcts_target_policy(state):
@@ -118,6 +145,20 @@ class Trainer:
         self.losses = []
         self.episode_rewards = []
         self.episode_lengths = []
+        
+        # Add tracking for best model
+        self.best_reward = float('-inf')
+        self.best_epoch = -1
+        
+        # Create save directory if it doesn't exist
+        os.makedirs(save_path, exist_ok=True)
+        
+        # Try to load the best model if it exists
+        loaded = load_models(self.policy_model, self.value_model, self.save_path)
+        if loaded:
+            print("Successfully loaded previous best model.")
+        else:
+            print("Starting with fresh models.")
 
     def train(self, num_epochs):
         print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
@@ -148,7 +189,7 @@ class Trainer:
                 # Apply the action: get next_state, reward, etc.
                 next_state, reward, done, info = self.step(state, action)
                 
-                # Extract visual features for the next state.
+                # Extract visual features for the next state.ç
                 next_visual_features = extract_visual_features(next_state, image_name)
                 
                 # Compute loss using both current and next visual features.
@@ -168,9 +209,20 @@ class Trainer:
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)
             self.episode_lengths.append(num_moves)
+            
+            # Save the model for this epoch
             self.save_model(epoch)
+            
+            # Check if this is the best model so far
+            if total_reward > self.best_reward:
+                self.best_reward = total_reward
+                self.best_epoch = epoch
+                self.save_best_model(epoch, total_reward)
+                print(f"  [NEW BEST MODEL at epoch {epoch} with reward {total_reward:.4f}]")
+            
             self.log_metrics(epoch)
         print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
+        print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
         self.plot_progress()
 
     def plot_progress(self):
@@ -215,6 +267,17 @@ class Trainer:
         """Save the current policy and value networks."""
         torch.save(self.policy_model.state_dict(), f"{self.save_path}/policy_epoch_{epoch}.pth")
         torch.save(self.value_model.state_dict(), f"{self.save_path}/value_epoch_{epoch}.pth")
+        print(f"  [Saved model for epoch {epoch}]")
+
+    def save_best_model(self, epoch, reward):
+        """Save information about the best model."""
+        with open(f"{self.save_path}/best_model.txt", 'w') as f:
+            f.write(f"Epoch: {epoch}\n")
+            f.write(f"Reward: {reward}\n")
+            f.write(f"Episode Length: {self.episode_lengths[-1]}\n")
+            f.write(f"Loss: {self.losses[-1]}\n")
+            f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"  [Updated best_model.txt with information about epoch {epoch}]")
 
     def log_metrics(self, epoch):
         """Log training metrics."""
