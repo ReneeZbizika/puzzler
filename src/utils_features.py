@@ -118,7 +118,7 @@ def compute_signature(contour):
     signature = np.stack((curvature, curvature_derivative), axis=1)
     return signature
 
-# Compute a discrete “signature” that approximate the curvature and its derivative along the edge
+# Compute a discrete "signature" that approximate the curvature and its derivative along the edge
 def resample_edge(signature, num_points): 
     """
     Resample the given edge signature to num_points using interpolation. 
@@ -140,7 +140,7 @@ def resample_edge(signature, num_points):
     resampled_signature = interpolator(t_new)
     return resampled_signature
 
-# Define an edge compatibility score as a function of how “close” these signature vectors are
+# Define an edge compatibility score as a function of how "close" these signature vectors are
 # Compatibility score between 2 edges
 # greater alpha = stricter 
 def edge_compatibility(edge1_signature, edge2_signature, alpha=1.0): 
@@ -520,40 +520,32 @@ def render_state_to_image(state, use_screen=True, only_box=True):
         
 
 def resize_to_match(img1, img2):
-    """
-    Ensure that two images have the same dimensions.
+    """Resize img1 to match the dimensions of img2"""
+    # Ensure both are numpy arrays
+    if not isinstance(img1, np.ndarray):
+        print(f"Error: img1 is not a numpy array, it's {type(img1)}")
+        img1 = np.zeros((100, 100, 3), dtype=np.uint8)
     
-    Parameters:
-        img1 (np.array): First image (shape: (H, W, C) or (H, W)).
-        img2 (np.array): Second image (shape: (H, W, C) or (H, W)).
-        
-    Returns:
-        tuple: (resized_img1, resized_img2) where both images have the same (height, width).
+    if not isinstance(img2, np.ndarray):
+        print(f"Error: img2 is not a numpy array, it's {type(img2)}")
+        img2 = np.zeros((100, 100, 3), dtype=np.uint8)
     
-    The smaller image (by total area) is resized to match the larger image's dimensions.
-    If the images already have the same dimensions, they are returned unchanged.
-    """
-    # Get dimensions of both images.
-    surf = pygame.display.get_surface()
-    h1, w1 = img1.shape[:2]
+    # Check if images are valid
+    if img1.size == 0 or img2.size == 0:
+        print("Error: One of the images is empty")
+        return np.zeros((100, 100, 3), dtype=np.uint8), np.zeros((100, 100, 3), dtype=np.uint8)
+    
+    # Get dimensions
     h2, w2 = img2.shape[:2]
     
-    # If the dimensions are already the same, return the images as is.
-    if (h1, w1) == (h2, w2):
-        return img1, img2
+    # Ensure dimensions are positive
+    if h2 <= 0 or w2 <= 0:
+        print(f"Error: Invalid target dimensions: {w2}x{h2}")
+        h2, w2 = max(1, h2), max(1, w2)
     
-    # Compute total area for each image.
-    area1 = h1 * w1
-    area2 = h2 * w2
-    
-    if area1 < area2:
-        # Resize img1 to match img2 dimensions.
-        resized_img1 = cv2.resize(img1, (w2, h2))
-        return resized_img1, img2
-    else:
-        # Resize img2 to match img1 dimensions.
-        resized_img2 = cv2.resize(img2, (w1, h1))
-        return img1, resized_img2
+    # Resize
+    resized_img1 = cv2.resize(img1, (w2, h2))
+    return resized_img1, img2
 
 #TODO: later implement a choice of metrics between MSE vs SSIM
 # SSIM is considered more perceptually relevant than metrics like Mean Squared Error (MSE)
@@ -609,44 +601,102 @@ def compute_similarity_score(current_img, target_img):
 # load target image
 # cur state = render_state_to_image
 # compute (cur, target)
-def extract_visual_features(state, img_name):
-    """
-    Compute visual features for the value network from the current state.
+def extract_visual_features(state, image_name):
+    """Extract visual features from the current state"""
+    # Handle custom State object
+    if hasattr(state, '__class__') and state.__class__.__name__ == 'State':
+        # Extract the visual representation from your custom State object
+        # This depends on how your State class is structured
+        if hasattr(state, 'board') and hasattr(state.board, 'render'):
+            # If your State has a board with a render method
+            current_img = state.board.render()
+        elif hasattr(state, 'render'):
+            # If your State has a direct render method
+            current_img = state.render()
+        elif hasattr(state, 'image'):
+            # If your State stores an image directly
+            current_img = state.image
+        elif hasattr(state, 'pieces'):
+            # If your State has puzzle pieces, render them to an image
+            current_img = render_state_to_image(state)
+        else:
+            print("Warning: Could not extract image from State object")
+            # Create a blank image as fallback
+            current_img = np.zeros((500, 500, 3), dtype=np.uint8)
+    else:
+        # Handle other types (pygame Surface, numpy array, etc.)
+        current_img = convert_to_numpy_if_needed(state)
     
-    Features include:
-      1. Visual similarity score between the current state image and the target image.
-      2. Overall edge compatibility score using evaluate_assembly_compatibility.
-      
-    Parameters:
-        state: The current puzzle state.
-        edge_compatibility: Precomputed edge compatibility matrix.
-        img_name: name of original image
-        
-    Returns:
-        A list of features [similarity_score, edge_score].
-    """
-    # Render current state to an image.
-    current_img = render_state_to_image(state, use_screen=True, only_box=True)
+    # Ensure current_img is a numpy array
+    if not isinstance(current_img, np.ndarray):
+        print(f"Warning: current_img is not a numpy array, it's {type(current_img)}")
+        current_img = np.zeros((500, 500, 3), dtype=np.uint8)
     
-    # Load target image.
-    target_img = load_eval_image(root_eval, img_name)
+    # Load the target image
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    target_path = os.path.join(project_root, "data", f"{image_name}.jpg")
+    target_img = cv2.imread(target_path)
     
-    # Compute visual similarity.
+    if target_img is None:
+        print(f"Warning: Could not load target image from {target_path}")
+        target_img = np.zeros((500, 500, 3), dtype=np.uint8)
+    
+    # Compute similarity
     similarity_score = compute_similarity_score(current_img, target_img)
     
-    # Load edge to piece map
-    edge_to_piece_map = load_edge_to_piece_map(root_eval, img_name)
+    # Extract other features as needed
+    # ...
     
-    # Build a simple assembly representation.
-    """
-    assembly_state = {}
-    for pid, piece in state.pieces.items():
-        # Assume each piece has attributes x, y, and possibly orientation (defaulting to 0).
-        orientation = getattr(piece, 'orientation', 0)
-        assembly_state[pid] = (piece.x, piece.y, orientation)
-    """
+    return similarity_score  # or return a feature vector
+
+# Set up a dummy display before initializing pygame
+os.environ['SDL_VIDEODRIVER'] = 'dummy'
+pygame.init()
+pygame.display.set_mode((1, 1))  # Create a small hidden display surface
+
+def convert_to_numpy_if_needed(state):
+    """Convert various types to numpy arrays for image processing"""
+    if isinstance(state, np.ndarray):
+        return state
+    elif isinstance(state, pygame.Surface):
+        # Convert pygame surface to numpy array
+        array = pygame.surfarray.array3d(state)
+        return array.transpose(1, 0, 2)  # Correct orientation
+    elif hasattr(state, 'get_array'):
+        # Some custom objects might have a method to get array
+        return state.get_array()
+    else:
+        print(f"Warning: Unsupported state type: {type(state)}")
+        return np.zeros((500, 500, 3), dtype=np.uint8)
+
+def render_state_to_image(state):
+    """Render a state with puzzle pieces to an image"""
+    # Create a blank image
+    width, height = 1200, 800  # Default size
+    image = np.zeros((height, width, 3), dtype=np.uint8)
+    image.fill(240)  # Light gray background
     
-    # Compute overall edge compatibility using your function.
-    edge_score = evaluate_assembly_compatibility(state.assembly, img_name)
+    # Draw the puzzle board
+    box_x, box_y = 50, 50
+    box_width, box_height = 800, 600  # Default size
     
-    return [similarity_score, edge_score]
+    # Try to get actual dimensions if available
+    if hasattr(state, 'box_width') and hasattr(state, 'box_height'):
+        box_width, box_height = state.box_width, state.box_height
+    
+    # Draw board as gray rectangle
+    cv2.rectangle(image, (box_x, box_y), (box_x + box_width, box_y + box_height), (180, 180, 180), -1)
+    
+    # Draw pieces if available
+    if hasattr(state, 'pieces'):
+        for piece in state.pieces:
+            if hasattr(piece, 'image') and hasattr(piece, 'current_pos'):
+                # Convert pygame surface to numpy array if needed
+                piece_img = convert_to_numpy_if_needed(piece.image)
+                x, y = piece.current_pos
+                
+                # Paste the piece onto the image
+                h, w = piece_img.shape[:2]
+                image[y:y+h, x:x+w] = piece_img
+    
+    return image

@@ -24,7 +24,7 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 # Constants (set these appropriately)
 MAX_SIM_DEPTH = 10
 TIME_PER_MOVE = 1.0
-MCTS_ITERATIONS = 100
+MCTS_ITERATIONS = 10  # Instead of 100
 COMPATIBILITY_THRESHOLD = 0.5
 C = 1.0  # Exploration constant
 
@@ -34,20 +34,71 @@ def convert_state_to_tensor(state):
     """
     Convert your state into a flat tensor of size (1, state_dim).
     """
-     # Example: assume state has a list of piece positions stored in state.assembly (a 2D NumPy array)
-     # only grab numerical stuff
-    flat_state = state.assembly.flatten() 
-    # Ensure it is a float tensor and add a batch dimension.
-    state_tensor = torch.tensor(flat_state, dtype=torch.float32).unsqueeze(0)
+    # Create a feature vector with the correct size (30 features)
+    state_vector = []
+    
+    # Extract features from the state
+    if hasattr(state, 'assembly') and state.assembly is not None:
+        flat_state = state.assembly.flatten()
+        state_vector.extend(flat_state.tolist())
+    
+    # Extract features from pieces if available
+    if hasattr(state, 'pieces'):
+        # Handle pieces as a dictionary or list
+        if isinstance(state.pieces, dict):
+            pieces_list = list(state.pieces.values())
+        else:
+            pieces_list = state.pieces
+            
+        for piece in pieces_list:
+            if hasattr(piece, 'x') and hasattr(piece, 'y'):
+                # Normalize position values
+                x = piece.x / 1200.0  # Assuming max width is 1200
+                y = piece.y / 800.0   # Assuming max height is 800
+                state_vector.extend([x, y])
+    
+    # Ensure we have exactly 30 features
+    if len(state_vector) < 30:
+        # Pad with zeros if we have fewer than 30 features
+        state_vector.extend([0.0] * (30 - len(state_vector)))
+    else:
+        # Truncate if we have more than 30 features
+        state_vector = state_vector[:30]
+    
+    # Convert to tensor and add batch dimension
+    state_tensor = torch.FloatTensor(state_vector).unsqueeze(0)
+    
     return state_tensor
 
-def policy_network_forward(state, policy_model):
-    """
-    Convert the state into a tensor representation and pass it through the PyTorch policy model.
-    Returns a probability distribution over valid actions.
-    """
-    state_tensor = convert_state_to_tensor(state)  # user-defined function
-    probs = policy_model(state_tensor)             # policy_model: a pretrained PyTorch model, shape: (1, action_dim)
+def policy_network_forward(current_state, policy_model):
+    """Forward pass through the policy network"""
+    # Create a feature vector from the state
+    state_vector = []
+    
+    # Extract features from pieces if available
+    if hasattr(current_state, 'pieces'):
+        # Handle pieces as a list
+        if isinstance(current_state.pieces, list):
+            for piece in current_state.pieces:
+                if hasattr(piece, 'current_pos'):
+                    # Normalize position values
+                    x = piece.current_pos[0] / 1200.0
+                    y = piece.current_pos[1] / 800.0
+                    state_vector.extend([x, y])
+    
+    # Ensure we have exactly 30 features
+    if len(state_vector) < 30:
+        # Pad with zeros if we have fewer than 30 features
+        state_vector.extend([0.0] * (30 - len(state_vector)))
+    else:
+        # Truncate if we have more than 30 features
+        state_vector = state_vector[:30]
+    
+    # Convert to tensor and add batch dimension
+    state_tensor = torch.FloatTensor(state_vector).unsqueeze(0)
+    
+    # Forward pass through the model
+    probs = policy_model(state_tensor)
     return probs
 
 # visual_features: 
@@ -64,10 +115,38 @@ def value_network_forward(state, value_model):
     """
     state_tensor = convert_state_to_tensor(state)
     
-    visual_features = extract_visual_features(state, image_name)
+    # Extract visual features and ensure it has the correct shape (2 features)
+    try:
+        visual_features_raw = extract_visual_features(state, image_name)
+        
+        # Handle the case where extract_visual_features returns a single value
+        if isinstance(visual_features_raw, (float, numpy.float64, numpy.float32)):
+            # If it's a single value, create a list with two elements
+            visual_features = [float(visual_features_raw), 0.0]
+        elif hasattr(visual_features_raw, '__iter__'):
+            # If it's already an iterable (list, tuple, array), convert to list
+            visual_features = list(visual_features_raw)
+            # Make sure we have exactly 2 features
+            if len(visual_features) < 2:
+                # If we have fewer than 2 features, pad with zeros
+                visual_features = visual_features + [0.0] * (2 - len(visual_features))
+            elif len(visual_features) > 2:
+                # If we have more than 2 features, truncate
+                visual_features = visual_features[:2]
+        else:
+            # Fallback for any other type
+            visual_features = [0.0, 0.0]
+            
+    except Exception as e:
+        # Fallback if feature extraction fails
+        print(f"Warning: Visual feature extraction failed: {e}")
+        visual_features = [0.0, 0.0]  # Default values
     
     visual_tensor = torch.tensor(visual_features, dtype=torch.float32).unsqueeze(0)
-
+    
+    # Ensure visual_tensor has shape (1, 2)
+    assert visual_tensor.shape == (1, 2), f"Visual tensor has incorrect shape: {visual_tensor.shape}, expected (1, 2)"
+    
     value = value_model(state_tensor, visual_tensor)  # Updated to pass both inputs
     
     return value.item()
@@ -166,7 +245,7 @@ def simulation(state, policy_model, value_model, max_depth=MAX_SIM_DEPTH):
         depth += 1
         
     # If simulation ended before reaching a terminal state, boost using the value network
-    # approximate future rewards that the simulation didn’t cover.
+    # approximate future rewards that the simulation didn't cover.
     if not is_terminal(current_state):
         cumulative_reward += value_network_forward(current_state, value_model)
     
@@ -185,16 +264,59 @@ def backpropagation(node, reward):
 #TODO edit render_fn = render_state, edit redit_state from mcts.py or game_agent.py (should be only one function, unite)
 def MCTS(root_state, policy_model, value_model, iterations=100, render=False, render_fn=None):
     root = Node(root_state)
+    start_time = time.time()
+    
+    print(f"Starting MCTS with {iterations} iterations...")
+    
     for i in range(iterations):
+        if i % 5 == 0 or i == iterations - 1:  # Log more frequently
+            elapsed = time.time() - start_time
+            print(f"MCTS iteration {i}/{iterations} (elapsed: {elapsed:.2f}s)")
+        
+        # Selection phase
         leaf = selection(root, policy_model)
+        print(f"  - Selection complete for iteration {i}")
+        
+        # Expansion phase
         expanded = expansion(leaf)
+        print(f"  - Expansion complete for iteration {i}, created {len(expanded.children)} children")
+        
+        # Simulation phase
         reward = simulation(expanded.state, policy_model, value_model)
+        print(f"  - Simulation complete for iteration {i}, reward: {reward:.4f}")
+        
+        # Backpropagation phase
         backpropagation(expanded, reward)
+        print(f"  - Backpropagation complete for iteration {i}")
         
         # If rendering is enabled, call the rendering function with the current state.
         if render and render_fn is not None:
-            render_fn(root_state)  # or pass expanded.state as desired.
+            render_fn(root_state)
+    
+    # Print summary statistics
+    total_time = time.time() - start_time
+    print(f"MCTS completed {iterations} iterations in {total_time:.2f} seconds")
+    print(f"Average time per iteration: {total_time/iterations:.4f} seconds")
+    
+    # Print information about the children
+    if root.children:
+        print("\nTop actions by visit count:")
+        sorted_children = sorted(root.children, key=lambda c: c.visits, reverse=True)
+        for i, child in enumerate(sorted_children[:5]):  # Show top 5
+            print(f"  {i+1}. Action: piece_id={child.action.piece_id}, dx={child.action.dx}, dy={child.action.dy}")
+            print(f"     Visits: {child.visits}, Avg Reward: {child.total_reward/max(1, child.visits):.4f}")
+    else:
+        print("Warning: Root node has no children!")
+    
+    # Select best child
+    if not root.children:
+        print("No valid actions found!")
+        return None
+    
     best_child = max(root.children, key=lambda child: child.visits)
+    print(f"\nSelected best action: piece_id={best_child.action.piece_id}, dx={best_child.action.dx}, dy={best_child.action.dy}")
+    print(f"Visits: {best_child.visits}, Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}")
+    
     return best_child.action
 
 # Then, in your Train.py (or wherever you call MCTS), 
@@ -216,13 +338,14 @@ def update_assembly(assembly, action):
 
 #TODO add params for visual checking
 
-#TODO dynamic filename
+# Global cache for centroids
+_CENTROIDS_CACHE = None
+
 def load_puzzle_centroids(filename="Datasets/puzzle_centroids.json"):
-    """
-    Load puzzle centroids from a JSON file.
-    
-    Returns a dictionary mapping piece IDs (as integers) to (x, y) coordinates.
-    """
+    global _CENTROIDS_CACHE
+    if _CENTROIDS_CACHE is not None:
+        return _CENTROIDS_CACHE
+        
     with open(filename, "r") as f:
         data = json.load(f)
     
@@ -242,6 +365,8 @@ def load_puzzle_centroids(filename="Datasets/puzzle_centroids.json"):
         y = centroid.get("y")
         if x is not None and y is not None:
             centroids[pid] = (x, y)
+    
+    _CENTROIDS_CACHE = centroids
     return centroids
 
 def is_piece_correctly_assembled(state, piece_id, centroids, tolerance=10):

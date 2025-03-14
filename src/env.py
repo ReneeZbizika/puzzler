@@ -440,3 +440,44 @@ def render_state(screen, state):
     for piece in state.pieces.values():
         piece.draw(screen)
     pygame.display.flip()
+
+def step(state, action):
+    """
+    Execute an action in the given state and return the next state, reward, done flag, and info.
+    
+    Parameters:
+        state: The current state
+        action: The action to take
+        
+    Returns:
+        next_state: The new state after taking the action
+        reward: The reward received for taking the action
+        done: Boolean indicating if the episode is finished
+        info: Dictionary containing additional information
+    """
+    # Apply the action to get the next state
+    next_state = apply_action(state, action)
+    
+    # Calculate reward (you can use the compute_intermediate_reward function from mcts.py)
+    # For now, use a simple reward
+    reward = 0.0
+    if hasattr(next_state, 'pieces') and hasattr(action, 'piece_id'):
+        # Check if the piece is in the correct position
+        # This is a simplified version - you might want to use your existing reward function
+        reward = 1.0 if is_piece_correctly_placed(next_state, action.piece_id) else -0.1
+    
+    # Check if the episode is done
+    done = is_terminal(next_state)
+    
+    # Additional info
+    info = {}
+    
+    return next_state, reward, done, info
+
+def is_piece_correctly_placed(state, piece_id):
+    """
+    Simple helper function to check if a piece is correctly placed.
+    You might want to replace this with your existing logic.
+    """
+    # Placeholder implementation - replace with your actual logic
+    return False

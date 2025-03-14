@@ -4,10 +4,11 @@ import torch.optim as optim
 import numpy
 import matplotlib as plt
 import pygame
+import torch.nn.functional as F
 
 import env
-from env import get_dimensions, image_name, img_name, render_state
-from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS
+from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
+from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS, compute_intermediate_reward, TIME_PER_MOVE, action_to_index
 #state_dim, action_dim, visual_dim,
 from models import PolicyNetwork, ValueNetwork
 
@@ -22,6 +23,9 @@ value_model = ValueNetwork(state_dim, visual_dim)
 
 # Create an optimizer for both networks (here we use Adam)
 optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parameters()), lr=1e-3)
+
+# Add this constant at the top of your file, outside any class
+GAMMA = 0.99  # Standard discount factor for reinforcement learning
 
 def load_models(policy_model, value_model, save_path, epoch):
     """Load saved models from checkpoint."""
@@ -40,31 +44,64 @@ def mcts_target_policy(state):
     num_actions = action_dim  # Adjust if your action space is larger.
     return torch.ones((1, num_actions), dtype=torch.float32) / num_actions
 
-
-def compute_loss(state, action, reward, next_state, visual_features, next_visual_features, gamma=0.99):
-    # Convert states to tensors
+# Define the compute_loss function as a standalone function
+def compute_loss(state, action, reward, next_state, visual_features, next_visual_features, policy_model, value_model, gamma):
+    # Convert state to tensor
     state_tensor = convert_state_to_tensor(state)
     next_state_tensor = convert_state_to_tensor(next_state)
     
-    visual_tensor = torch.tensor(visual_features, dtype=torch.float32).unsqueeze(0)
-    next_visual_tensor = torch.tensor(next_visual_features, dtype=torch.float32).unsqueeze(0)
-
-    # Forward pass through policy and value networks
-    predicted_policy = policy_model(state_tensor)
+    # Process visual features to ensure they have the correct shape (1, 2)
+    def process_visual_features(features):
+        if isinstance(features, (float, numpy.float64, numpy.float32)):
+            # If it's a single value, create a list with two elements
+            features = [float(features), 0.0]
+        elif hasattr(features, '__iter__'):
+            # If it's already an iterable, convert to list
+            features = list(features)
+            # Make sure we have exactly 2 features
+            if len(features) < 2:
+                features = features + [0.0] * (2 - len(features))
+            elif len(features) > 2:
+                features = features[:2]
+        else:
+            # Fallback for any other type
+            features = [0.0, 0.0]
+        
+        return torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+    
+    # Process both current and next visual features
+    visual_tensor = process_visual_features(visual_features)
+    next_visual_tensor = process_visual_features(next_visual_features)
+    
+    # Ensure tensors have the correct shape
+    assert visual_tensor.shape == (1, 2), f"Visual tensor has incorrect shape: {visual_tensor.shape}, expected (1, 2)"
+    assert next_visual_tensor.shape == (1, 2), f"Next visual tensor has incorrect shape: {next_visual_tensor.shape}, expected (1, 2)"
+    
+    # Get the predicted value for the current state
     predicted_value = value_model(state_tensor, visual_tensor)
-
-    # Assume target policy from MCTS visit counts
-    target_policy = mcts_target_policy(state)
-
-    policy_loss = -torch.sum(target_policy * torch.log(predicted_policy + 1e-8))
-
-    # Compute target value with bootstrapping
-    with torch.no_grad():
-        target_value = reward + gamma * value_model(next_state_tensor, next_visual_tensor)
-
-    value_loss = (predicted_value - target_value).pow(2).mean()
-
-    return policy_loss + value_loss
+    
+    # Get the predicted value for the next state
+    next_predicted_value = value_model(next_state_tensor, next_visual_tensor)
+    
+    # Calculate the target value using the reward and the discounted next state value
+    target_value = reward + gamma * next_predicted_value
+    
+    # Calculate the value loss (MSE)
+    value_loss = F.mse_loss(predicted_value, target_value.detach())
+    
+    # Get the action probabilities from the policy network
+    action_probs = policy_model(state_tensor)
+    
+    # Convert the action to an index
+    action_idx = action_to_index(state, action)
+    
+    # Calculate the policy loss (negative log likelihood of the taken action)
+    policy_loss = -torch.log(action_probs[0, action_idx])
+    
+    # Combine the losses
+    loss = value_loss + policy_loss
+    
+    return loss
 
 #TODO
 class Trainer:
@@ -81,6 +118,7 @@ class Trainer:
 
     def train(self, num_epochs):
         for epoch in range(num_epochs):
+            self.env = env  # Use the existing environment
             state = self.env.reset()  # Reset returns a State object
             total_reward = 0
             num_moves = 0
@@ -93,7 +131,7 @@ class Trainer:
                 action = self.select_action(state)
                 
                 # Apply the action: get next_state, reward, etc.
-                next_state, reward, done, info = self.env.step(action)
+                next_state, reward, done, info = self.step(state, action)
                 
                 # Extract visual features for the next state.
                 next_visual_features = extract_visual_features(next_state, image_name)
@@ -144,7 +182,8 @@ class Trainer:
 
     def optimize(self, state, action, reward, next_state, visual_features, next_visual_features):
         """Compute loss, perform backpropagation, and update the networks."""
-        loss = compute_loss(state, action, reward, next_state, visual_features, next_visual_features)
+        loss = compute_loss(state, action, reward, next_state, visual_features, next_visual_features, 
+                            self.policy_model, self.value_model, GAMMA)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -158,6 +197,24 @@ class Trainer:
     def log_metrics(self, epoch):
         """Log training metrics."""
         print(f"Epoch {epoch}: Model saved and metrics logged.")
+
+    def step(self, state, action):
+        """
+        Execute an action in the given state and return the next state, reward, done flag, and info.
+        """
+        # Apply the action to get the next state
+        next_state = apply_action(state, action)
+        
+        # Calculate reward
+        reward = compute_intermediate_reward(state, action, TIME_PER_MOVE)
+        
+        # Check if the episode is done
+        done = is_terminal(next_state)
+        
+        # Additional info
+        info = {}
+        
+        return next_state, reward, done, info
 
 if __name__ == "__main__":
     #pygame.init()
