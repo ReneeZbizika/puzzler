@@ -153,6 +153,10 @@ class Trainer:
         # Create save directory if it doesn't exist
         os.makedirs(save_path, exist_ok=True)
         
+        # Create progress directory for screenshots
+        self.progress_dir = "progress"
+        os.makedirs(self.progress_dir, exist_ok=True)
+        
         # Try to load the best model if it exists
         loaded = load_models(self.policy_model, self.value_model, self.save_path)
         if loaded:
@@ -163,6 +167,11 @@ class Trainer:
     def train(self, num_epochs):
         print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
         for epoch in range(num_epochs):
+            # Create epoch directory for screenshots
+            epoch_dir = os.path.join(self.progress_dir, f"epoch_{epoch}")
+            os.makedirs(epoch_dir, exist_ok=True)
+            print(f"Created screenshot directory: {epoch_dir}")
+            
             self.env = env  # Use the existing environment
             state = self.env.reset()  # Reset returns a State object
             
@@ -172,6 +181,11 @@ class Trainer:
             total_reward = 0
             num_moves = 0
             done = False
+            
+            # Save initial state screenshot
+            if self.render_on:
+                self.save_screenshot(epoch_dir, num_moves, state)
+                print(f"  [Saved initial puzzle state screenshot]")
             
             # Add a step limit to prevent infinite loops
             while not done and num_moves < MAX_STEPS_PER_EPOCH:
@@ -189,7 +203,7 @@ class Trainer:
                 # Apply the action: get next_state, reward, etc.
                 next_state, reward, done, info = self.step(state, action)
                 
-                # Extract visual features for the next state.ç
+                # Extract visual features for the next state.
                 next_visual_features = extract_visual_features(next_state, image_name)
                 
                 # Compute loss using both current and next visual features.
@@ -199,13 +213,19 @@ class Trainer:
                 # Print action, reward and loss information on same line
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
+                # Save screenshot every 5 steps
+                if self.render_on and num_moves % 25 == 0:
+                    self.save_screenshot(epoch_dir, num_moves, state)
+                    print(f"  [Saved puzzle state screenshot for step {num_moves}]")
+                
                 state = next_state
                 total_reward += reward
             
-            # Add a message if max steps was reached
-            if num_moves >= MAX_STEPS_PER_EPOCH:
-                print(f"\n[WARNING] [Maximum step limit of {MAX_STEPS_PER_EPOCH} reached for epoch {epoch+1}]")
-                
+            # Save final state screenshot
+            if self.render_on:
+                self.save_screenshot(epoch_dir, num_moves, state, is_final=True)
+                print(f"  [Saved final puzzle state screenshot]")
+            
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)
             self.episode_lengths.append(num_moves)
@@ -305,6 +325,39 @@ class Trainer:
         info = {}
         
         return next_state, reward, done, info
+
+    def save_screenshot(self, epoch_dir, step, state, is_final=False):
+        """Save a screenshot of the current pygame display."""
+        if pygame.display.get_surface() is None:
+            print("Warning: No pygame display available for screenshot")
+            return
+        
+        screen = pygame.display.set_mode((974, 758))
+
+        # Force a render of the current state
+        render_state(screen, state)  # Now state is properly passed as a parameter
+        
+        # Ensure the display is updated
+        pygame.display.flip()
+        
+        # Optional: small delay to ensure rendering is complete
+        pygame.time.delay(100)  # 100ms delay
+        
+        # Get the pygame display surface
+        surface = pygame.display.get_surface()
+        
+        # Create filename
+        if is_final:
+            filename = f"final_step_{step}.png"
+        else:
+            filename = f"step_{step}.png"
+        
+        filepath = os.path.join(epoch_dir, filename)
+        
+        # Save the screenshot
+        pygame.image.save(surface, filepath)
+        
+        return filepath
 
 if __name__ == "__main__":
     #pygame.init()
