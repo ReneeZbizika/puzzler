@@ -191,17 +191,17 @@ def expansion(node):
     Expand the leaf node by adding all valid child nodes.
     """
     if is_terminal(node.state):
-        print(f"No expansion: Terminal state reached")
+        print(f"    [Expansion] [No expansion needed - Terminal state reached]")
         return node  # No expansion if terminal
     
     actions = valid_actions(node.state)
-    print(f"Valid actions found: {len(actions)}")
+    print(f"    [Expansion] [Valid actions found: {len(actions)}]")
     
     # Clear existing children (if any)
     node.children = []
     
     if not actions:
-        print(f"WARNING: No valid actions found for state!")
+        print(f"    [WARNING]   [No valid actions found for state!]")
         return node
     
     for action in actions:
@@ -209,7 +209,7 @@ def expansion(node):
         child_node = Node(state=new_state, parent=node, action=action)
         node.children.append(child_node)
     
-    print(f"Created {len(node.children)} child nodes")
+    print(f"    [Expansion] [Created {len(node.children)} child nodes]")
     
     # Return a random child node for simulation
     if node.children:
@@ -284,16 +284,18 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
     root = Node(root_state)
     start_time = time.time()
     
-    print(f"Starting MCTS with {iterations} iterations...")
+    print(f"\n{'='*50}")
+    print(f"[STARTING MCTS: {iterations} ITERATIONS]")
+    print(f"{'='*50}")
     
     for i in range(iterations):
-        if i % 5 == 0 or i == iterations - 1:  # Log more frequently
-            elapsed = time.time() - start_time
-            print(f"MCTS iteration {i}/{iterations} (elapsed: {elapsed:.2f}s)")
+        # Print for every iteration instead of every 5
+        elapsed = time.time() - start_time
+        print(f"\n[ITERATION {i+1}/{iterations}] [Time Elapsed: {elapsed:.2f}s]")
         
         # Selection phase
         leaf = selection(root, policy_model)
-        print(f"  - Selection complete for iteration {i}")
+        print(f"    [Selection]        [Complete]")
         
         # Count children before expansion
         children_before = len(leaf.children)
@@ -308,15 +310,16 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
             # If a different node was returned, it's a child node
             num_new_children = len(leaf.children)
         
-        print(f"  - Expansion complete for iteration {i}, created {num_new_children} children")
+        print(f"    [Expansion]        [New Children: {num_new_children}]")
         
         # Simulation phase
         reward = simulation(expanded.state, policy_model, value_model)
-        print(f"  - Simulation complete for iteration {i}, reward: {reward:.4f}")
+        print(f"    [Simulation]       [Reward: {reward:.4f}]")
         
         # Backpropagation phase
         backpropagation(expanded, reward)
-        print(f"  - Backpropagation complete for iteration {i}")
+        print(f"    [Backpropagation]  [Complete]")
+        print(f"    {'-'*46}")
         
         # If rendering is enabled, call the rendering function with the current state.
         if render and render_fn is not None:
@@ -324,27 +327,33 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
     
     # Print summary statistics
     total_time = time.time() - start_time
-    print(f"MCTS completed {iterations} iterations in {total_time:.2f} seconds")
-    print(f"Average time per iteration: {total_time/iterations:.4f} seconds")
+    print(f"\n{'='*50}")
+    print(f"[MCTS SUMMARY]")
+    print(f"{'='*50}")
+    print(f"[Total Iterations]       [{iterations}]")
+    print(f"[Total Time]             [{total_time:.2f}s]")
+    print(f"[Average Time/Iteration] [{total_time/iterations:.4f}s]")
     
     # Print information about the children
     if root.children:
-        print("\nTop actions by visit count:")
+        print(f"\n[TOP ACTIONS BY VISIT COUNT]")
         sorted_children = sorted(root.children, key=lambda c: c.visits, reverse=True)
         for i, child in enumerate(sorted_children[:5]):  # Show top 5
-            print(f"  {i+1}. Action: piece_id={child.action.piece_id}, dx={child.action.dx}, dy={child.action.dy}")
-            print(f"     Visits: {child.visits}, Avg Reward: {child.total_reward/max(1, child.visits):.4f}")
+            print(f"    [{i+1}] [Action: piece_id={child.action.piece_id}, dx={child.action.dx}, dy={child.action.dy}]")
+            print(f"        [Visits: {child.visits}] [Avg Reward: {child.total_reward/max(1, child.visits):.4f}]")
     else:
-        print("Warning: Root node has no children!")
+        print("[WARNING] [Root node has no children!]")
     
     # Select best child
     if not root.children:
-        print("No valid actions found!")
+        print("[ERROR] [No valid actions found!]")
         return None
     
     best_child = max(root.children, key=lambda child: child.visits)
-    print(f"\nSelected best action: piece_id={best_child.action.piece_id}, dx={best_child.action.dx}, dy={best_child.action.dy}")
-    print(f"Visits: {best_child.visits}, Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}")
+    print(f"\n[SELECTED BEST ACTION]")
+    print(f"    [Piece ID: {best_child.action.piece_id}] [dx: {best_child.action.dx}] [dy: {best_child.action.dy}]")
+    print(f"    [Visits: {best_child.visits}] [Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}]")
+    print(f"{'='*50}")
     
     return best_child.action
 

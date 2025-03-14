@@ -117,13 +117,25 @@ class Trainer:
         self.episode_lengths = []
 
     def train(self, num_epochs):
+        print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
         for epoch in range(num_epochs):
+            print(f"\n{'='*18} [EPOCH {epoch+1}/{num_epochs}] {'='*18}")
             self.env = env  # Use the existing environment
             state = self.env.reset()  # Reset returns a State object
+            
+            # Add this line to print the separator after the pieces are loaded
+            print("="*50)
+            
             total_reward = 0
             num_moves = 0
             done = False
+            
             while not done:
+                num_moves += 1
+                
+                # Print step with separator at the beginning of the loop
+                print(f"\n{'-'*15} [STEP {num_moves}] {'-'*15}")
+                
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
                 
@@ -140,15 +152,21 @@ class Trainer:
                 loss = self.optimize(state, action, reward, next_state,
                                     current_visual_features, next_visual_features)
                 
+                # Print action, reward and loss information
+                print(f"  [Action: {action}]")
+                print(f"  [Reward: {reward:.4f}]")
+                print(f"  [Loss: {loss.item():.4f}]")
+                print(f"{'-'*40}")
+                
                 state = next_state
                 total_reward += reward
-                num_moves += 1
                 
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)
             self.episode_lengths.append(num_moves)
             self.save_model(epoch)
             self.log_metrics(epoch)
+        print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
         self.plot_progress()
 
     def plot_progress(self):
@@ -196,7 +214,12 @@ class Trainer:
 
     def log_metrics(self, epoch):
         """Log training metrics."""
-        print(f"Epoch {epoch}: Model saved and metrics logged.")
+        print(f"\n{'='*10} [EPOCH {epoch+1} SUMMARY] {'='*10}")
+        print(f"  [Total Moves: {self.episode_lengths[-1]}]")
+        print(f"  [Total Reward: {self.episode_rewards[-1]:.4f}]")
+        print(f"  [Final Loss: {self.losses[-1]:.4f}]")
+        print(f"  [Model saved to: {self.save_path}/policy_epoch_{epoch}.pth]")
+        print(f"{'='*40}")
 
     def step(self, state, action):
         """
