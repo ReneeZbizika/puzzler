@@ -1,0 +1,4 @@
+Best Epoch: 0
+Total Reward: -31.0
+Episode Length: 31
+Loss: 8.621953010559082

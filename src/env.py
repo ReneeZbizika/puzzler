@@ -312,7 +312,7 @@ def valid_actions(state):
     Perform early pruning based on edge compatibility.
     """
     actions = []
-    for piece_id in state.unplaced_pieces:
+    for piece_id, _ in state.pieces.items():
         for movement in possible_moves(state):       # e.g., candidate movement vectors
             #for layer_op in possible_layer_ops():    # e.g., operations affecting layering
             #   action = Action(piece.id, movement, layer_op)
@@ -339,6 +339,9 @@ def is_terminal(state):
     """
     # naive solution, move all of them once
     # state.unplaced_piece is a set
+    if valid_actions(state) == None:
+        return True
+    # Check if all pieces are within the puzzle box
     for piece in state.pieces.values():
         if not (BOX_X <= piece.x <= BOX_X + BOX_WIDTH - piece.image.get_width() and 
                 BOX_Y <= piece.y <= BOX_Y + BOX_HEIGHT - piece.image.get_height()):

@@ -5,6 +5,9 @@ import numpy
 import matplotlib as plt
 import pygame
 import torch.nn.functional as F
+import datetime
+import json
+import math
 
 import env
 from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
@@ -27,13 +30,42 @@ optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parame
 # Add this constant at the top of your file, outside any class
 GAMMA = 0.99  # Standard discount factor for reinforcement learning
 
-def load_models(policy_model, value_model, save_path, epoch):
-    """Load saved models from checkpoint."""
-    policy_model.load_state_dict(torch.load(f"{save_path}/policy_epoch_{epoch}.pth"))
-    value_model.load_state_dict(torch.load(f"{save_path}/value_epoch_{epoch}.pth"))
-    print(f"Loaded models from {save_path}/policy_epoch_{epoch}.pth and value_epoch_{epoch}.pth")
+# Add a constant for max steps per epoch
+MAX_STEPS_PER_EPOCH = 100
+
+def load_models(policy_model, value_model, save_path, epoch=None):
+    """
+    Load saved models from checkpoint.
+    If epoch is None, loads the best model according to best_model.txt
+    """
+    if epoch is None:
+        # Try to load best model
+        best_model_path = f"{save_path}/best_model.txt"
+        if os.path.exists(best_model_path):
+            with open(best_model_path, 'r') as f:
+                best_info = f.read().strip().split('\n')
+                best_epoch = int(best_info[0].split(':')[1].strip())
+                best_reward = float(best_info[1].split(':')[1].strip())
+                print(f"Loading best model from epoch {best_epoch} with reward {best_reward}")
+                epoch = best_epoch
+        else:
+            print("No best model found. Starting with fresh models.")
+            return False
     
-#load_models(policy_model, value_model, "checkpoints", epoch=50)
+    # Load the specified model
+    policy_path = f"{save_path}/policy_epoch_{epoch}.pth"
+    value_path = f"{save_path}/value_epoch_{epoch}.pth"
+    
+    if os.path.exists(policy_path) and os.path.exists(value_path):
+        policy_model.load_state_dict(torch.load(policy_path))
+        value_model.load_state_dict(torch.load(value_path))
+        print(f"Loaded models from epoch {epoch}")
+        print(f"  - Policy: {policy_path}")
+        print(f"  - Value: {value_path}")
+        return True
+    else:
+        print(f"Could not find model files for epoch {epoch}")
+        return False
 
 #TODO: mcts_target_policy
 def mcts_target_policy(state):
@@ -115,15 +147,55 @@ class Trainer:
         self.losses = []
         self.episode_rewards = []
         self.episode_lengths = []
+        
+        # Add tracking for best model
+        self.best_reward = float('-inf')
+        self.best_epoch = -1
+        
+        # Create save directory if it doesn't exist
+        os.makedirs(save_path, exist_ok=True)
+        
+        # Create progress directory for screenshots
+        self.progress_dir = "progress"
+        os.makedirs(self.progress_dir, exist_ok=True)
+        
+        # Try to load the best model if it exists
+        loaded = load_models(self.policy_model, self.value_model, self.save_path)
+        if loaded:
+            print("Successfully loaded previous best model.")
+        else:
+            print("Starting with fresh models.")
 
     def train(self, num_epochs):
+        print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
         for epoch in range(num_epochs):
+            # Create epoch directory for screenshots
+            epoch_dir = os.path.join(self.progress_dir, f"epoch_{epoch}")
+            os.makedirs(epoch_dir, exist_ok=True)
+            print(f"Created screenshot directory: {epoch_dir}")
+            
             self.env = env  # Use the existing environment
             state = self.env.reset()  # Reset returns a State object
+            
+            # Add this line to print the separator after the pieces are loaded
+            print("="*50)
+            
             total_reward = 0
             num_moves = 0
             done = False
-            while not done:
+            
+            # Save initial state screenshot
+            if self.render_on:
+                self.save_screenshot(epoch_dir, num_moves, state)
+                print(f"[Saved initial puzzle state screenshot]")
+            
+            # Add a step limit to prevent infinite loops
+            while not done and num_moves < MAX_STEPS_PER_EPOCH:
+                num_moves += 1
+                
+                # Print epoch and step on the same line
+                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}/{MAX_STEPS_PER_EPOCH}]", end=" ")
+                
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
                 
@@ -140,15 +212,40 @@ class Trainer:
                 loss = self.optimize(state, action, reward, next_state,
                                     current_visual_features, next_visual_features)
                 
+                # Print action, reward and loss information on same line
+                print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
+                
+                # Save screenshot every 5 steps
+                if self.render_on and num_moves % 50 == 0:
+                    # print_puzzle_completion(state) undo after fix
+                    self.save_screenshot(epoch_dir, num_moves, state)
+                    print(f"[Saved puzzle state screenshot for step {num_moves}]")
+                
                 state = next_state
                 total_reward += reward
-                num_moves += 1
-                
+            
+            # Save final state screenshot
+            if self.render_on:
+                self.save_screenshot(epoch_dir, num_moves, state, is_final=True)
+                print(f"[Saved final puzzle state screenshot]")
+            
             self.losses.append(loss.item())
             self.episode_rewards.append(total_reward)
             self.episode_lengths.append(num_moves)
+            
+            # Save the model for this epoch
             self.save_model(epoch)
+            
+            # Check if this is the best model so far
+            if total_reward > self.best_reward:
+                self.best_reward = total_reward
+                self.best_epoch = epoch
+                self.save_best_model(epoch, total_reward)
+                print(f"  [NEW BEST MODEL at epoch {epoch} with reward {total_reward:.4f}]")
+            
             self.log_metrics(epoch)
+        print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
+        print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
         self.plot_progress()
 
     def plot_progress(self):
@@ -193,10 +290,26 @@ class Trainer:
         """Save the current policy and value networks."""
         torch.save(self.policy_model.state_dict(), f"{self.save_path}/policy_epoch_{epoch}.pth")
         torch.save(self.value_model.state_dict(), f"{self.save_path}/value_epoch_{epoch}.pth")
+        print(f"  [Saved model for epoch {epoch}]")
+
+    def save_best_model(self, epoch, reward):
+        """Save information about the best model."""
+        with open(f"{self.save_path}/best_model.txt", 'w') as f:
+            f.write(f"Epoch: {epoch}\n")
+            f.write(f"Reward: {reward}\n")
+            f.write(f"Episode Length: {self.episode_lengths[-1]}\n")
+            f.write(f"Loss: {self.losses[-1]}\n")
+            f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"  [Updated best_model.txt with information about epoch {epoch}]")
 
     def log_metrics(self, epoch):
         """Log training metrics."""
-        print(f"Epoch {epoch}: Model saved and metrics logged.")
+        print(f"\n{'='*10} [EPOCH {epoch+1} SUMMARY] {'='*10}")
+        print(f"  [Total Moves: {self.episode_lengths[-1]}]")
+        print(f"  [Total Reward: {self.episode_rewards[-1]:.4f}]")
+        print(f"  [Final Loss: {self.losses[-1]:.4f}]")
+        print(f"  [Model saved to: {self.save_path}/policy_epoch_{epoch}.pth]")
+        print(f"{'='*40}")
 
     def step(self, state, action):
         """
@@ -215,6 +328,117 @@ class Trainer:
         info = {}
         
         return next_state, reward, done, info
+
+    def save_screenshot(self, epoch_dir, step, state, is_final=False):
+        """Save a screenshot of the current pygame display."""
+        if pygame.display.get_surface() is None:
+            print("Warning: No pygame display available for screenshot")
+            return
+        
+        screen = pygame.display.set_mode((974, 758))
+
+        # Force a render of the current state
+        render_state(screen, state)  # Now state is properly passed as a parameter
+        
+        # Ensure the display is updated
+        pygame.display.flip()
+        
+        # Optional: small delay to ensure rendering is complete
+        pygame.time.delay(100)  # 100ms delay
+        
+        # Get the pygame display surface
+        surface = pygame.display.get_surface()
+        
+        # Create filename
+        if is_final:
+            filename = f"final_step_{step}.png"
+        else:
+            filename = f"step_{step}.png"
+        
+        filepath = os.path.join(epoch_dir, filename)
+        
+        # Save the screenshot
+        pygame.image.save(surface, filepath)
+        
+        return filepath
+
+def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+    """
+    Calculate how close the puzzle pieces are to their target positions.
+    
+    Args:
+        state: The current puzzle state containing piece positions
+        centroids_file: Path to the JSON file with target centroids
+        
+    Returns:
+        completion_percentage: Overall percentage of puzzle completion
+        piece_distances: Dictionary of distances for each piece
+    """
+    # Load centroids data
+    with open(centroids_file, 'r') as f:
+        centroids_data = json.load(f)
+    
+    # Extract piece information from state
+    piece_positions = {}
+
+    # GET PIECE CURRENT CENTROID POSITION
+
+    # Calculate distance for each piece
+    max_distance = 0
+    total_distance = 0
+    piece_distances = {}
+    
+    for piece_info in centroids_data["pieces"]:
+        piece_id = piece_info["id"]
+        target_x = piece_info["centroid"]["x"]
+        target_y = piece_info["centroid"]["y"]
+        
+        if piece_id in piece_positions:
+            current_x = piece_positions[piece_id]["x"]
+            current_y = piece_positions[piece_id]["y"]
+            
+            # Calculate Euclidean distance
+            distance = math.sqrt((current_x - target_x)**2 + (current_y - target_y)**2)
+            piece_distances[piece_id] = distance
+            total_distance += distance
+            
+            # Track theoretical maximum distance (diagonal of screen)
+            # This assumes a 974x758 screen based on the screenshot dimensions in the code
+            max_distance += math.sqrt(974**2 + 758**2)
+        else:
+            piece_distances[piece_id] = float('inf')
+            total_distance += math.sqrt(974**2 + 758**2)  # Add max possible distance for missing pieces
+            max_distance += math.sqrt(974**2 + 758**2)
+    
+    # Calculate completion percentage (inverted - closer means higher percentage)
+    # Using an exponential decay formula to make percentage more meaningful
+    if max_distance == 0:  # Safety check
+        completion_percentage = 100.0
+    else:
+        normalized_distance = total_distance / max_distance
+        completion_percentage = 100 * math.exp(-5 * normalized_distance)  # Exponential scaling
+    
+    return completion_percentage, piece_distances
+
+def print_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+    """
+    Print information about puzzle completion status.
+    """
+    completion_percentage, piece_distances = calculate_puzzle_completion(state, centroids_file)
+    
+    print(f"\n{'='*50}")
+    print(f"PUZZLE COMPLETION: {completion_percentage:.2f}%")
+    print(f"{'='*50}")
+    
+    # Sort pieces by distance (closest to furthest)
+    sorted_distances = sorted(piece_distances.items(), key=lambda x: x[1])
+    
+    print("PIECE POSITIONS (closest to target first):")
+    for i, (piece_id, distance) in enumerate(sorted_distances):
+        print(f"  {i+1:2d}. {piece_id}: {distance:.2f} pixels from target position")
+    print(f"{'='*50}\n")
+    
+    return completion_percentage
 
 if __name__ == "__main__":
     #pygame.init()
