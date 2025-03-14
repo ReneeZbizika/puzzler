@@ -191,14 +191,32 @@ def expansion(node):
     Expand the leaf node by adding all valid child nodes.
     """
     if is_terminal(node.state):
+        print(f"No expansion: Terminal state reached")
         return node  # No expansion if terminal
+    
     actions = valid_actions(node.state)
+    print(f"Valid actions found: {len(actions)}")
+    
+    # Clear existing children (if any)
+    node.children = []
+    
+    if not actions:
+        print(f"WARNING: No valid actions found for state!")
+        return node
+    
     for action in actions:
         new_state = apply_action(node.state, action)
         child_node = Node(state=new_state, parent=node, action=action)
         node.children.append(child_node)
-    # Optionally, return one of the new child nodes for simulation
-    return random.choice(node.children) if node.children else node
+    
+    print(f"Created {len(node.children)} child nodes")
+    
+    # Return a random child node for simulation
+    if node.children:
+        chosen_child = random.choice(node.children)
+        return chosen_child
+    else:
+        return node  # Return the original node if no children were created
 
 # Pass visual features into value_network_forward() for evaluation.
 def simulation(state, policy_model, value_model, max_depth=MAX_SIM_DEPTH):
@@ -277,9 +295,20 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
         leaf = selection(root, policy_model)
         print(f"  - Selection complete for iteration {i}")
         
+        # Count children before expansion
+        children_before = len(leaf.children)
+        
         # Expansion phase
         expanded = expansion(leaf)
-        print(f"  - Expansion complete for iteration {i}, created {len(expanded.children)} children")
+        
+        # Count children after expansion to get the actual number created
+        if expanded == leaf:
+            num_new_children = len(leaf.children) - children_before
+        else:
+            # If a different node was returned, it's a child node
+            num_new_children = len(leaf.children)
+        
+        print(f"  - Expansion complete for iteration {i}, created {num_new_children} children")
         
         # Simulation phase
         reward = simulation(expanded.state, policy_model, value_model)
