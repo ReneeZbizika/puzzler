@@ -191,25 +191,23 @@ def expansion(node):
     Expand the leaf node by adding all valid child nodes.
     """
     if is_terminal(node.state):
-        print(f"    [Expansion] [No expansion needed - Terminal state reached]")
+        # Don't print this message since we'll show expansion results on main line
         return node  # No expansion if terminal
     
     actions = valid_actions(node.state)
-    print(f"    [Expansion] [Valid actions found: {len(actions)}]")
     
     # Clear existing children (if any)
     node.children = []
     
     if not actions:
-        print(f"    [WARNING]   [No valid actions found for state!]")
+        # Just a simple warning, but won't add extra line
+        print(f"[WARNING: No valid actions]", end=" ")
         return node
     
     for action in actions:
         new_state = apply_action(node.state, action)
         child_node = Node(state=new_state, parent=node, action=action)
         node.children.append(child_node)
-    
-    print(f"    [Expansion] [Created {len(node.children)} child nodes]")
     
     # Return a random child node for simulation
     if node.children:
@@ -291,11 +289,11 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
     for i in range(iterations):
         # Print for every iteration instead of every 5
         elapsed = time.time() - start_time
-        print(f"\n[ITERATION {i+1}/{iterations}] [Time Elapsed: {elapsed:.2f}s]")
+        print(f"\n[ITERATION {i+1}/{iterations}] [Time: {elapsed:.2f}s]", end=" ")
         
         # Selection phase
         leaf = selection(root, policy_model)
-        print(f"    [Selection]        [Complete]")
+        print(f"[Selection]", end=" ")
         
         # Count children before expansion
         children_before = len(leaf.children)
@@ -310,16 +308,15 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
             # If a different node was returned, it's a child node
             num_new_children = len(leaf.children)
         
-        print(f"    [Expansion]        [New Children: {num_new_children}]")
+        print(f"[Expansion: {num_new_children} children]", end=" ")
         
         # Simulation phase
         reward = simulation(expanded.state, policy_model, value_model)
-        print(f"    [Simulation]       [Reward: {reward:.4f}]")
+        print(f"[Reward: {reward:.4f}]", end=" ")
         
         # Backpropagation phase
         backpropagation(expanded, reward)
-        print(f"    [Backpropagation]  [Complete]")
-        print(f"    {'-'*46}")
+        print(f"[Backpropagation]")
         
         # If rendering is enabled, call the rendering function with the current state.
         if render and render_fn is not None:
@@ -330,17 +327,15 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
     print(f"\n{'='*50}")
     print(f"[MCTS SUMMARY]")
     print(f"{'='*50}")
-    print(f"[Total Iterations]       [{iterations}]")
-    print(f"[Total Time]             [{total_time:.2f}s]")
-    print(f"[Average Time/Iteration] [{total_time/iterations:.4f}s]")
+    print(f"[Total Iterations: {iterations}] [Total Time: {total_time:.2f}s] [Avg Time/Iteration: {total_time/iterations:.4f}s]")
     
     # Print information about the children
     if root.children:
         print(f"\n[TOP ACTIONS BY VISIT COUNT]")
         sorted_children = sorted(root.children, key=lambda c: c.visits, reverse=True)
         for i, child in enumerate(sorted_children[:5]):  # Show top 5
-            print(f"    [{i+1}] [Action: piece_id={child.action.piece_id}, dx={child.action.dx}, dy={child.action.dy}]")
-            print(f"        [Visits: {child.visits}] [Avg Reward: {child.total_reward/max(1, child.visits):.4f}]")
+            print(f"  [{i+1}] [Piece ID: {child.action.piece_id}, dx: {child.action.dx}, dy: {child.action.dy}] " 
+                  f"[Visits: {child.visits}] [Avg Reward: {child.total_reward/max(1, child.visits):.4f}]")
     else:
         print("[WARNING] [Root node has no children!]")
     
@@ -350,9 +345,8 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
         return None
     
     best_child = max(root.children, key=lambda child: child.visits)
-    print(f"\n[SELECTED BEST ACTION]")
-    print(f"    [Piece ID: {best_child.action.piece_id}] [dx: {best_child.action.dx}] [dy: {best_child.action.dy}]")
-    print(f"    [Visits: {best_child.visits}] [Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}]")
+    print(f"\n[SELECTED BEST ACTION] [Piece ID: {best_child.action.piece_id}, dx: {best_child.action.dx}, dy: {best_child.action.dy}] "
+          f"[Visits: {best_child.visits}] [Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}]")
     print(f"{'='*50}")
     
     return best_child.action
@@ -541,22 +535,3 @@ def action_to_index(state, action):
     # Calculate the overall index.
     index = piece_index * len(candidate_moves) + move_index
     return index
-
-
-#TODO evaluate edges function
-
-
-# --- PyGame Rendering ---
-#TODO implement rendering and pass to game_v2
-"""
-def render_state(screen, state):
-    # Draw background, box, etc.
-    for pid, piece in state.pieces.items():
-        # If orientation is non-zero, rotate piece.image on the fly
-        screen.blit(piece.image, (piece.x, piece.y))
-    pygame.display.flip()
-"""
-
-# Entry point
-#if __name__ == "__main__":
-#    main()

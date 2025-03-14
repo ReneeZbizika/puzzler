@@ -119,7 +119,6 @@ class Trainer:
     def train(self, num_epochs):
         print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
         for epoch in range(num_epochs):
-            print(f"\n{'='*18} [EPOCH {epoch+1}/{num_epochs}] {'='*18}")
             self.env = env  # Use the existing environment
             state = self.env.reset()  # Reset returns a State object
             
@@ -133,8 +132,8 @@ class Trainer:
             while not done:
                 num_moves += 1
                 
-                # Print step with separator at the beginning of the loop
-                print(f"\n{'-'*15} [STEP {num_moves}] {'-'*15}")
+                # Print epoch and step on the same line
+                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}]", end=" ")
                 
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
@@ -152,11 +151,8 @@ class Trainer:
                 loss = self.optimize(state, action, reward, next_state,
                                     current_visual_features, next_visual_features)
                 
-                # Print action, reward and loss information
-                print(f"  [Action: {action}]")
-                print(f"  [Reward: {reward:.4f}]")
-                print(f"  [Loss: {loss.item():.4f}]")
-                print(f"{'-'*40}")
+                # Print action, reward and loss information on same line
+                print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
                 state = next_state
                 total_reward += reward
