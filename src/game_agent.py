@@ -6,7 +6,7 @@ import time
 import numpy as np
 
 from env import State, Action, Piece
-from env import apply_action, is_terminal, render_state
+from env import apply_action, is_terminal, render_state, image_name
 #set_puzzle_dimensions
 from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
 from env import load_puzzle_pieces
@@ -26,7 +26,7 @@ BOX_Y = 50
 
 #TODO - use img_path and pieces_path instead of hardcoding 
 # Image Filepath 
-img_path = "img_2"
+img_path = image_name
 pieces_path = f"pieces_{img_path}"
 
 # ----- Helper Functions for Loading Pieces -----
@@ -119,7 +119,7 @@ def run_agent_game():
     font = pygame.font.SysFont(None, 36) # Initialize a font (using the default font, size 36)
     
     # Instead of interactive dragging, load the pieces and create a State object.
-    pieces_dict = load_puzzle_pieces("pieces_img_2")
+    pieces_dict = load_puzzle_pieces(f"data/puzzle_pieces/pieces_{image_name}/")
     if not pieces_dict:
         return
     

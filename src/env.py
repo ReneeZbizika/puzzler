@@ -7,9 +7,12 @@ import time
 import json
 
 # --- Filepath definitions ---
-image_name = "img_6"
+image_name = "img_3"
 img_name = image_name
 root_eval = "data/evaluation/"
+
+# Add a flag to control model loading
+ENABLE_MODEL_LOADING = True  # Set to False to skip loading pre-trained models
 
 # root = "data"
 # Build the file path to your JSON file.
@@ -145,6 +148,9 @@ def load_puzzle_pieces(pieces_folder):
     
     for i, piece_file in enumerate(piece_files):
         try:
+            # Extract piece_id from filename instead of using enumerate index
+            piece_id = int(piece_file.split('_')[1].split('.')[0])
+            
             piece_path = os.path.join(pieces_path, piece_file)
             image = pygame.image.load(piece_path).convert_alpha()
             
@@ -156,7 +162,8 @@ def load_puzzle_pieces(pieces_folder):
                 start_x = random.randint(*start_x_range)
                 start_y = random.randint(*start_y_range)
             
-            piece = Piece(piece_id=i+1, image=image, x=start_x, y=start_y)
+            # Use extracted piece_id instead of i+1
+            piece = Piece(piece_id=piece_id, image=image, x=start_x, y=start_y)
             pieces_dict[piece.id] = piece
         except Exception as e:
             print(f"Error loading piece {piece_file}: {e}")

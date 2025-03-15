@@ -4,6 +4,8 @@ import pygame
 import random
 import json  # Add import for JSON handling
 
+from env import image_name
+
 # Initialize Pygame
 pygame.init()
 
@@ -60,7 +62,7 @@ def load_puzzle_pieces(pieces_folder):
     pieces = []
     
     # Load image parameters and set box dimensions
-    BOX_WIDTH, BOX_HEIGHT = set_puzzle_dimensions("img_2")
+    BOX_WIDTH, BOX_HEIGHT = set_puzzle_dimensions(image_name)
     
     # Get the project root directory
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -152,7 +154,7 @@ def main():
     global selected_piece, dragging
     
     # Load actual puzzle pieces
-    load_puzzle_pieces("data/puzzle_pieces/pieces_img_2")
+    load_puzzle_pieces(f"data/puzzle_pieces/pieces_{image_name}/")
 
     clock = pygame.time.Clock()
     running = True

@@ -338,7 +338,6 @@ if __name__ == "__main__":
     # ^ already defined in globals
     base_name = os.path.splitext(image_name)[0]
     
-    # Use the base name to construct folder and file names.
     folder_path = f"data/puzzle_pieces/pieces_{base_name}/"
     
     # Extract edges and compute compatibility

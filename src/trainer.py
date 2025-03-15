@@ -33,38 +33,31 @@ GAMMA = 0.99  # Standard discount factor for reinforcement learning
 # Add a constant for max steps per epoch
 MAX_STEPS_PER_EPOCH = 1
 
-def load_models(policy_model, value_model, save_path, epoch=None):
-    """
-    Load saved models from checkpoint.
-    If epoch is None, loads the best model according to best_model.txt
-    """
-    if epoch is None:
-        # Try to load best model
-        best_model_path = f"{save_path}/best_model.txt"
-        if os.path.exists(best_model_path):
-            with open(best_model_path, 'r') as f:
-                best_info = f.read().strip().split('\n')
-                best_epoch = int(best_info[0].split(':')[1].strip())
-                best_reward = float(best_info[1].split(':')[1].strip())
-                print(f"Loading best model from epoch {best_epoch} with reward {best_reward}")
-                epoch = best_epoch
-        else:
-            print("No best model found. Starting with fresh models.")
-            return False
+def load_models(policy_model, value_model, save_path):
+    # Import the flag from env
+    from env import ENABLE_MODEL_LOADING
     
-    # Load the specified model
-    policy_path = f"{save_path}/policy_epoch_{epoch}.pth"
-    value_path = f"{save_path}/value_epoch_{epoch}.pth"
+    # Skip loading if disabled
+    if not ENABLE_MODEL_LOADING:
+        print("Model loading disabled. Starting with fresh models.")
+        return False
+        
+    # Continue with existing loading logic
+    policy_path = os.path.join(save_path, "policy_model.pth")
+    value_path = os.path.join(save_path, "value_model.pth")
     
-    if os.path.exists(policy_path) and os.path.exists(value_path):
+    if not os.path.exists(policy_path) or not os.path.exists(value_path):
+        print("No saved models found. Starting with fresh models.")
+        return False
+    
+    try:
         policy_model.load_state_dict(torch.load(policy_path))
         value_model.load_state_dict(torch.load(value_path))
-        print(f"Loaded models from epoch {epoch}")
-        print(f"  - Policy: {policy_path}")
-        print(f"  - Value: {value_path}")
+        print("Models loaded successfully.")
         return True
-    else:
-        print(f"Could not find model files for epoch {epoch}")
+    except Exception as e:
+        print(f"Error loading models: {e}")
+        print("Starting with fresh models.")
         return False
 
 #TODO: mcts_target_policy
@@ -143,31 +136,36 @@ class Trainer:
         self.policy_model = policy_model
         self.value_model = value_model
         self.optimizer = optimizer
-        self.save_path = save_path
+        
+        # Create image-specific save path
+        self.base_save_path = save_path
+        self.image_name = image_name  # From env import
+        self.save_path = os.path.join(save_path, f"{self.image_name}")
+        
         self.render_on = render_on
         self.losses = []
         self.episode_rewards = []
         self.episode_lengths = []
-        self.completion_rates = []  # Track puzzle completion
-        self.avg_rewards_per_step = []  # New list to track average reward per step
+        self.completion_rates = []
+        self.avg_rewards_per_step = []
         
         # Add tracking for best model
         self.best_reward = float('-inf')
         self.best_epoch = -1
         
-        # Create save directory if it doesn't exist
-        os.makedirs(save_path, exist_ok=True)
+        # Create image-specific save directory if it doesn't exist
+        os.makedirs(self.save_path, exist_ok=True)
         
-        # Create progress directory for screenshots
-        self.progress_dir = "progress"
+        # Create progress directory for screenshots (also image-specific)
+        self.progress_dir = os.path.join("progress", f"{self.image_name}")
         os.makedirs(self.progress_dir, exist_ok=True)
         
-        # Try to load the best model if it exists
-        loaded = load_models(self.policy_model, self.value_model, self.save_path)
+        # Try to load the best model for this specific image if it exists
+        loaded = self.load_models()
         if loaded:
-            print("Successfully loaded previous best model.")
+            print(f"Successfully loaded previous best model for {self.image_name}.")
         else:
-            print("Starting with fresh models.")
+            print(f"Starting with fresh models for {self.image_name}.")
 
     def train(self, num_epochs):
         print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
@@ -358,20 +356,26 @@ class Trainer:
         return loss
 
     def save_model(self, epoch):
-        """Save the current policy and value networks."""
+        """Save the current policy and value networks with image-specific naming."""
         torch.save(self.policy_model.state_dict(), f"{self.save_path}/policy_epoch_{epoch}.pth")
         torch.save(self.value_model.state_dict(), f"{self.save_path}/value_epoch_{epoch}.pth")
-        print(f"  [Saved model for epoch {epoch}]")
+        print(f"  [Saved model for {self.image_name} epoch {epoch}]")
 
     def save_best_model(self, epoch, reward):
-        """Save information about the best model."""
+        """Save information about the best model with image-specific naming."""
+        # Save model weights as the default files for easy loading
+        torch.save(self.policy_model.state_dict(), f"{self.save_path}/policy_model.pth")
+        torch.save(self.value_model.state_dict(), f"{self.save_path}/value_model.pth")
+        
+        # Save metadata about this best model
         with open(f"{self.save_path}/best_model.txt", 'w') as f:
+            f.write(f"Image: {self.image_name}\n")
             f.write(f"Epoch: {epoch}\n")
             f.write(f"Reward: {reward}\n")
             f.write(f"Episode Length: {self.episode_lengths[-1]}\n")
             f.write(f"Loss: {self.losses[-1]}\n")
             f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        print(f"  [Updated best_model.txt with information about epoch {epoch}]")
+        print(f"  [Updated best_model.txt for {self.image_name} at epoch {epoch}]")
 
     def log_metrics(self, epoch):
         """Log training metrics."""
@@ -432,6 +436,57 @@ class Trainer:
         pygame.image.save(surface, filepath)
         
         return filepath
+
+    def load_models(self):
+        """Load models specific to the current image if they exist."""
+        # Skip loading if disabled in env
+        try:
+            from env import ENABLE_MODEL_LOADING
+            if not ENABLE_MODEL_LOADING:
+                print("Model loading disabled. Starting with fresh models.")
+                return False
+        except (ImportError, AttributeError):
+            # If the flag doesn't exist, default to attempting to load
+            pass
+        
+        # Look for image-specific model files
+        policy_path = os.path.join(self.save_path, "policy_model.pth")
+        value_path = os.path.join(self.save_path, "value_model.pth")
+        
+        if not os.path.exists(policy_path) or not os.path.exists(value_path):
+            print(f"No saved models found for {self.image_name}. Starting with fresh models.")
+            return False
+        
+        try:
+            print(f"Loading models for {self.image_name} from {self.save_path}")
+            self.policy_model.load_state_dict(torch.load(policy_path))
+            self.value_model.load_state_dict(torch.load(value_path))
+            
+            # Load best model metadata if available
+            best_model_info_path = os.path.join(self.save_path, "best_model.txt")
+            if os.path.exists(best_model_info_path):
+                with open(best_model_info_path, 'r') as f:
+                    lines = f.readlines()
+                    for line in lines:
+                        if line.startswith("Reward:"):
+                            try:
+                                self.best_reward = float(line.split(":")[1].strip())
+                            except:
+                                pass
+                        elif line.startswith("Epoch:"):
+                            try:
+                                self.best_epoch = int(line.split(":")[1].strip())
+                            except:
+                                pass
+            
+            print(f"Best model info loaded: Epoch {self.best_epoch}, Reward {self.best_reward:.4f}")
+            
+            print("Models loaded successfully.")
+            return True
+        except Exception as e:
+            print(f"Error loading models: {e}")
+            print("Starting with fresh models.")
+            return False
 
 def calculate_puzzle_completion(state, centroids_file=centroids_folder):
     """
@@ -513,10 +568,6 @@ def print_puzzle_completion(state, centroids_file=centroids_folder):
     return completion_percentage
 
 if __name__ == "__main__":
-    #pygame.init()
-    #pygame.display.set_mode((1, 1))  # or minimal, (1,1)
-    # use render_state from env
-    # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
-    trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on = True)
-    trainer.train(num_epochs=10) #change from 100 to 10 so we save model early
+    trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on=True)
+    trainer.train(num_epochs=10)

@@ -1,5 +1,0 @@
-Epoch: 0
-Total Reward: -31.0
-Episode Length: 31
-Final Loss: 8.621953010559082
-Learning Rate: 0.001
