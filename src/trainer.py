@@ -368,7 +368,8 @@ class Trainer:
         plt.legend()
         
         plt.show()
-        plt.save(self.save_path)
+        plot_filename = f"{self.save_path}/training_progress.png"  # or something similar
+        plt.savefig(plot_filename)
 
     def select_action(self, state):
         """Select the next action using MCTS."""
