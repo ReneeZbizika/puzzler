@@ -128,6 +128,7 @@ def compute_loss(state, action, reward, next_state, visual_features, next_visual
     action_idx = action_to_index(state, action)
     
     # Calculate the policy loss (negative log likelihood of the taken action)
+    # alphazzle says to use categorical cross-entropy
     policy_loss = -torch.log(action_probs[0, action_idx])
     
     # Combine the losses
@@ -380,6 +381,14 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     
     # Extract piece information from state
     piece_positions = {}
+    for row_index, row in enumerate(state.assembly):
+        for col_index, piece_id in enumerate(row):
+            if piece_id is not None:  # There's a piece at this cell
+                # Use (col_index, row_index) as the "centroid"
+                piece_positions[piece_id] = {
+                    "x": col_index,
+                    "y": row_index
+                }
 
     # GET PIECE CURRENT CENTROID POSITION
 
@@ -393,6 +402,8 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
         target_x = piece_info["centroid"]["x"]
         target_y = piece_info["centroid"]["y"]
         
+        max_single_piece_distance = math.sqrt(974**2 + 758**2)
+        
         if piece_id in piece_positions:
             current_x = piece_positions[piece_id]["x"]
             current_y = piece_positions[piece_id]["y"]
@@ -402,13 +413,14 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
             piece_distances[piece_id] = distance
             total_distance += distance
             
+            
             # Track theoretical maximum distance (diagonal of screen)
             # This assumes a 974x758 screen based on the screenshot dimensions in the code
-            max_distance += math.sqrt(974**2 + 758**2)
+            max_distance += max_single_piece_distance
         else:
             piece_distances[piece_id] = float('inf')
-            total_distance += math.sqrt(974**2 + 758**2)  # Add max possible distance for missing pieces
-            max_distance += math.sqrt(974**2 + 758**2)
+            total_distance += max_single_piece_distance  # Add max possible distance for missing pieces
+            max_distance += max_single_piece_distance
     
     # Calculate completion percentage (inverted - closer means higher percentage)
     # Using an exponential decay formula to make percentage more meaningful
@@ -447,4 +459,4 @@ if __name__ == "__main__":
     # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
     trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on = True)
-    trainer.train(num_epochs=100)
+    trainer.train(num_epochs=10) #change from 100 to 10 so we save model early
