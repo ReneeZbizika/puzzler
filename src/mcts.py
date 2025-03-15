@@ -22,8 +22,11 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 #evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility)
 
 # Constants (set these appropriately)
+#INTER_REWARD_PLACEMENT = 5
+# original intermediate reward was 5, we will change to 50
+INTER_REWARD_PLACEMENT = 50
 MAX_SIM_DEPTH = 10
-TIME_PER_MOVE = 1.0
+TIME_PER_MOVE = 0.01
 MCTS_ITERATIONS = 10  # Instead of 100
 COMPATIBILITY_THRESHOLD = 0.5 #this is not used lol?
 C = 1.0  # Exploration constant
@@ -507,7 +510,7 @@ def compute_intermediate_reward(state, action, time_penalty, mode='assembly'):
         
         if is_piece_correctly_assembled(state, action.piece_id, centroids, tolerance): 
             # Give a positive reward if correctly assembled (you can tune this value)
-            reward = 5.0 - time_penalty
+            reward = INTER_REWARD_PLACEMENT - time_penalty
         else:
             # Otherwise, provide a negative or zero reward (penalize the time penalty)
             reward = -time_penalty

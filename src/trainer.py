@@ -36,25 +36,42 @@ MAX_STEPS_PER_EPOCH = 100
 # OVERRIDE MCTS_ITERATIONS from mcts, for lazy
 # LAZY
 MCTS_ITERATIONS = 5
+
+
  
-def load_models(policy_model, value_model, save_path, epoch=None):
+def load_models(policy_model, value_model, save_path, loss_model = False, epoch=None):
     """
     Load saved models from checkpoint.
     If epoch is None, loads the best model according to best_model.txt
     """
     if epoch is None:
         # Try to load best model
-        best_model_path = f"{save_path}/best_model.txt"
-        if os.path.exists(best_model_path):
-            with open(best_model_path, 'r') as f:
-                best_info = f.read().strip().split('\n')
-                best_epoch = int(best_info[0].split(':')[1].strip())
-                best_reward = float(best_info[1].split(':')[1].strip())
-                print(f"Loading best model from epoch {best_epoch} with reward {best_reward}")
-                epoch = best_epoch
-        else:
-            print("No best model found. Starting with fresh models.")
-            return False
+        if loss_model == False:
+            best_model_path = f"{save_path}/best_model.txt"
+            if os.path.exists(best_model_path):
+                with open(best_model_path, 'r') as f:
+                    best_info = f.read().strip().split('\n')
+                    best_epoch = int(best_info[0].split(':')[1].strip())
+                    best_reward = float(best_info[1].split(':')[1].strip())
+                    print(f"Loading best model from epoch {best_epoch} with reward {best_reward}")
+                    epoch = best_epoch
+            else:
+                print("No best model found. Starting with fresh models.")
+                return False
+        
+        if loss_model == True:
+            best_model_path = f"{save_path}/best_model_loss.txt"
+            if os.path.exists(best_model_path):
+                with open(best_model_path, 'r') as f:
+                    best_info = f.read().strip().split('\n')
+                    best_epoch = int(best_info[0].split(':')[1].strip())
+                    best_loss = float(best_info[1].split(':')[1].strip())
+                    print(f"Loading best loss model from epoch {best_epoch} with loss {best_loss}")
+                    epoch = best_epoch
+            else:
+                print("No best model found. Starting with fresh models.")
+                return False
+            
     
     # Load the specified model
     policy_path = f"{save_path}/policy_epoch_{epoch}.pth"
@@ -216,7 +233,7 @@ def compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features
                 return loss
             
 class Trainer:
-    def __init__(self, env, policy_model, value_model, smooth, optimizer, save_path, render_on):
+    def __init__(self, env, policy_model, value_model, smooth, optimizer, save_path, render_on, loss_model):
         self.env = env
         self.policy_model = policy_model
         self.value_model = value_model
@@ -232,6 +249,9 @@ class Trainer:
         self.best_reward = float('-inf')
         self.best_epoch = -1
         
+        self.best_loss = float('-inf')
+        self.best_epoch_loss = -1
+        
         # Create save directory if it doesn't exist
         os.makedirs(save_path, exist_ok=True)
         
@@ -244,7 +264,7 @@ class Trainer:
         os.makedirs(self.progress_dir, exist_ok=True)
         
         # Try to load the best model if it exists
-        loaded = load_models(self.policy_model, self.value_model, self.save_path)
+        loaded = load_models(self.policy_model, self.value_model, self.save_path, loss_model)
         if loaded:
             print("Successfully loaded previous best model.")
         else:
@@ -291,13 +311,14 @@ class Trainer:
                 # 1) Call MCTS to get both the best action and the distribution
                 # Smoothing on
                 if (self.smooth):
-                    mcts_policy = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
+                    #mcts_policy = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
                     # If you also want the best action from the same MCTS run:
                     # single call:
                     # best_action = pick an action from action_distribution (like argmax)
 
                     # multiple calls
                     action, action_distribution = MCTS(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
+                    mcts_dist_tensor = build_distribution_tensor(action_distribution, state)
 
                 # Apply the action: get next_state, reward, etc.
                 next_state, reward, done, info = self.step(state, action)
@@ -307,14 +328,15 @@ class Trainer:
                 
                 # Compute loss using both current and next visual features.
                 loss = self.optimize(state, action, reward, next_state,
-                                        current_visual_features, next_visual_features)
+                                        current_visual_features, next_visual_features, mcts_dist_tensor)
                 
                 # Print action, reward and loss information on same line
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
+                print_puzzle_completion(state)
+                
                 # Save screenshot every 5 steps
                 if self.render_on and num_moves % 50 == 0:
-                    # print_puzzle_completion(state) undo after fix
                     self.save_screenshot(epoch_dir, num_moves, state)
                     print(f"[Saved puzzle state screenshot for step {num_moves}]")
                 
@@ -338,12 +360,20 @@ class Trainer:
                 self.best_reward = total_reward
                 self.best_epoch = epoch
                 self.save_best_model(epoch, total_reward)
-                print(f"  [NEW BEST MODEL at epoch {epoch} with reward {total_reward:.4f}]")
+                print(f"  [NEW BEST REWARD MODEL at epoch {epoch} with reward {total_reward:.4f}]")
+                
+            current_loss = loss.item()
+            if current_loss < self.best_loss:
+                self.best_loss = current_loss
+                self.best_epoch_loss = epoch
+                self.save_best_model_loss(epoch, current_loss)
+                print(f"  [NEW LOWEST LOSS MODEL at epoch {epoch} with loss {current_loss:.4f}]")
             
             self.log_metrics(epoch)
         print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
         print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
-        self.plot_progress(self.save_path)
+        print(f"Best loss model was from epoch {self.best_epoch_loss} with loss {self.best_loss:.4f}")
+        self.plot_progress()
 
     def plot_progress(self):
         """Plot loss, total reward, and moves per episode over training epochs."""
@@ -376,15 +406,15 @@ class Trainer:
         action = MCTS(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
         return action
 
-    def optimize(self, state, action, reward, next_state, visual_features, next_visual_features):
+    def optimize(self, state, action, reward, next_state, visual_features, next_visual_features, mcts_dist_tensor = None):
         if (self.smooth == False):
             """Compute loss, perform backpropagation, and update the networks."""
             loss = compute_loss(state, action, reward, next_state, visual_features, next_visual_features, 
                                 self.policy_model, self.value_model, GAMMA)
         if (self.smooth == True):
             # 1) Get MCTS distribution for current state
-            mcts_dist = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
-            loss = compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features, next_visual_features, 
+            #mcts_dist = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
+            loss = compute_loss_with_mcts(state, mcts_dist_tensor, reward, next_state, visual_features, next_visual_features, 
                                 self.policy_model, self.value_model, GAMMA)
         self.optimizer.zero_grad()
         loss.backward()
@@ -407,6 +437,15 @@ class Trainer:
             f.write(f"Loss: {self.losses[-1]}\n")
             f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         print(f"  [Updated best_model.txt with information about epoch {epoch}]")
+        
+    def save_best_model_loss(self, epoch, loss):
+        """Save information about the best model."""
+        with open(f"{self.save_path}/best_model_loss.txt", 'w') as f:
+            f.write(f"Epoch: {epoch}\n")
+            f.write(f"Episode Length: {self.episode_lengths[-1]}\n")
+            f.write(f"Loss: {self.losses[-1]}\n")
+            f.write(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        print(f"  [Updated best_model_loss.txt with information about epoch {epoch}]")
 
     def log_metrics(self, epoch):
         """Log training metrics."""
@@ -561,6 +600,10 @@ def print_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.jso
     print(f"PUZZLE COMPLETION: {completion_percentage:.2f}%")
     print(f"{'='*50}")
     
+    print(f"\n{'='*50}")
+    print(f"MSE DIST: {mse_distance}")
+    print(f"{'='*50}")
+    
     # Sort pieces by distance (closest to furthest)
     sorted_distances = sorted(piece_distances.items(), key=lambda x: x[1])
     
@@ -582,6 +625,6 @@ if __name__ == "__main__":
     #trainer.train(num_epochs=100, max_steps = 100)
     
     # smooth, and lazy
-    trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True)
+    trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True, loss_model = True)
     trainer.train(num_epochs=5, max_steps=5)
     
