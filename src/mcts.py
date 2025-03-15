@@ -346,19 +346,16 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
     # Select best child
     #TODO: how do we want to handle no actions found?
     if not root.children:
-<<<<<<< Updated upstream
         print("[ERROR] [No valid actions found!]")
         return None
-=======
         #print("No valid actions found!")
         #print("No valid actions found. Returning a no-op action.")
-        print("No valid actions left; treating this as a terminal state.")
-        done = True
-        return
+        #print("No valid actions left; treating this as a terminal state.")
+        #done = True
+        #return
         #return Action(piece_id=None, dx=0, dy=0)
         #return None
->>>>>>> Stashed changes
-    
+        
     best_child = max(root.children, key=lambda child: child.visits)
     print(f"\n[SELECTED BEST ACTION] [Piece ID: {best_child.action.piece_id}, dx: {best_child.action.dx}, dy: {best_child.action.dy}] "
           f"[Visits: {best_child.visits}] [Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}]")
