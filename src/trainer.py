@@ -2,7 +2,7 @@ import os
 import torch
 import torch.optim as optim
 import numpy
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import pygame
 import torch.nn.functional as F
 import datetime
@@ -11,7 +11,7 @@ import math
 
 import env
 from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
-from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS, compute_intermediate_reward, TIME_PER_MOVE, action_to_index
+from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS, compute_intermediate_reward, TIME_PER_MOVE, action_to_index, build_distribution_tensor
 #state_dim, action_dim, visual_dim,
 from models import PolicyNetwork, ValueNetwork
 
@@ -68,20 +68,58 @@ def load_models(policy_model, value_model, save_path, epoch=None):
         return False
 
 #TODO: mcts_target_policy
-def mcts_target_policy(state):
+def mcts_target_policy(state, policy_model, value_model, mcts_iterations = MCTS_ITERATIONS):
     """
     Placeholder function to generate a target policy from MCTS visit counts.
     Replace this with your actual target policy logic.
     """
-    num_actions = action_dim  # Adjust if your action space is larger.
-    return torch.ones((1, num_actions), dtype=torch.float32) / num_actions
+    # Baseline - uniform distribution
+    # Baseline, no target policy
+    # num_actions = action_dim  # Adjust if your action space is larger.
+    # return torch.ones((1, num_actions), dtype=torch.float32) / num_actions
+    """
+    Use MCTS to get a distribution (visit counts) over all actions,
+    then normalize to get a policy distribution (1 x num_actions).
+    """
+    best_action, action_distribution = MCTS(
+        root_state=state,
+        policy_model=policy_model,
+        value_model=value_model,
+        iterations=mcts_iterations,
+        render=False
+    )
+    
+    # Convert {action: prob} to a (1 x num_actions) tensor
+    normalized_action_distribution = build_distribution_tensor(action_distribution, state)
+    return normalized_action_distribution
 
+
+# Process visual features to ensure they have the correct shape (1, 2)
+def process_visual_features(features):
+    if isinstance(features, (float, numpy.float64, numpy.float32)):
+            # If it's a single value, create a list with two elements
+        features = [float(features), 0.0]
+    elif hasattr(features, '__iter__'):
+            # If it's already an iterable, convert to list
+        features = list(features)
+            # Make sure we have exactly 2 features
+        if len(features) < 2:
+                features = features + [0.0] * (2 - len(features))
+        elif len(features) > 2:
+                features = features[:2]
+    else:
+        # Fallback for any other type
+        features = [0.0, 0.0]
+    return torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+
+            
 # Define the compute_loss function as a standalone function
 def compute_loss(state, action, reward, next_state, visual_features, next_visual_features, policy_model, value_model, gamma):
     # Convert state to tensor
     state_tensor = convert_state_to_tensor(state)
     next_state_tensor = convert_state_to_tensor(next_state)
     
+    """
     # Process visual features to ensure they have the correct shape (1, 2)
     def process_visual_features(features):
         if isinstance(features, (float, numpy.float64, numpy.float32)):
@@ -98,8 +136,8 @@ def compute_loss(state, action, reward, next_state, visual_features, next_visual
         else:
             # Fallback for any other type
             features = [0.0, 0.0]
-        
-        return torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+    return torch.tensor(features, dtype=torch.float32).unsqueeze(0)
+    """
     
     # Process both current and next visual features
     visual_tensor = process_visual_features(visual_features)
@@ -135,12 +173,51 @@ def compute_loss(state, action, reward, next_state, visual_features, next_visual
     
     return loss
 
-#TODO
+#TODO: fill in
+def compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features, next_visual_features, 
+                            policy_model, value_model, gamma):
+                """
+                Example: we combine an MSE value loss with a cross-entropy policy loss
+                to match the MCTS distribution.
+                """
+                # Convert state to tensor
+                state_tensor = convert_state_to_tensor(state)
+                next_state_tensor = convert_state_to_tensor(next_state)
+    
+                current_visual_tensor = process_visual_features(visual_features)
+                next_visual_tensor = process_visual_features(next_visual_features)
+                
+                # Compute Value Loss
+                predicted_value = value_model(state_tensor, current_visual_tensor)
+                next_predicted_value = value_model(next_state_tensor, next_visual_tensor)
+                
+                #Target = R + gamma * V(next_state)
+                target_value = reward + gamma * next_predicted_value.detach()
+                
+                # MSE loss for value
+                value_loss = F.mse_loss(predicted_value, target_value)
+                
+                #Get policy loss
+                predicted_probs = policy_model(state_tensor)
+
+                # We want to match `predicted_probs` to `mcts_dist`. 
+                # Let's do a cross-entropy: -\sum(MCTS_dist * log(pred_probs))
+                # (1 x action_dim) each
+                # We add a small epsilon for numerical stability.
+                eps = 1e-8
+                policy_loss = -(mcts_dist * torch.log(predicted_probs + eps)).sum()
+                
+                # 3) combined loss
+                loss = value_loss + policy_loss
+                
+                return loss
+            
 class Trainer:
-    def __init__(self, env, policy_model, value_model, optimizer, save_path, render_on):
+    def __init__(self, env, policy_model, value_model, smooth, optimizer, save_path, render_on):
         self.env = env
         self.policy_model = policy_model
         self.value_model = value_model
+        self.smooth = smooth
         self.optimizer = optimizer
         self.save_path = save_path
         self.render_on = render_on
@@ -199,9 +276,22 @@ class Trainer:
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
                 
-                # Select an action using MCTS (or any other method).
-                action = self.select_action(state)
-                
+                # Baseline:
+                if (self.smooth == False):
+                    # Select an action using MCTS
+                    action = self.select_action(state)
+                    
+                # 1) Call MCTS to get both the best action and the distribution
+                # Smoothing on
+                if (self.smooth):
+                    mcts_policy = mcts_target_policy(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+                    # If you also want the best action from the same MCTS run:
+                    # single call:
+                    # best_action = pick an action from action_distribution (like argmax)
+
+                    # multiple calls
+                    action, action_distribution = MCTS(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+
                 # Apply the action: get next_state, reward, etc.
                 next_state, reward, done, info = self.step(state, action)
                 
@@ -210,7 +300,7 @@ class Trainer:
                 
                 # Compute loss using both current and next visual features.
                 loss = self.optimize(state, action, reward, next_state,
-                                    current_visual_features, next_visual_features)
+                                        current_visual_features, next_visual_features)
                 
                 # Print action, reward and loss information on same line
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
@@ -278,12 +368,19 @@ class Trainer:
         return action
 
     def optimize(self, state, action, reward, next_state, visual_features, next_visual_features):
-        """Compute loss, perform backpropagation, and update the networks."""
-        loss = compute_loss(state, action, reward, next_state, visual_features, next_visual_features, 
-                            self.policy_model, self.value_model, GAMMA)
+        if (self.smooth == False):
+            """Compute loss, perform backpropagation, and update the networks."""
+            loss = compute_loss(state, action, reward, next_state, visual_features, next_visual_features, 
+                                self.policy_model, self.value_model, GAMMA)
+        if (self.smooth == True):
+            # 1) Get MCTS distribution for current state
+            mcts_dist = mcts_target_policy(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+            loss = compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features, next_visual_features, 
+                                self.policy_model, self.value_model, GAMMA)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+            
         return loss
 
     def save_model(self, epoch):
@@ -367,12 +464,14 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     Calculate how close the puzzle pieces are to their target positions.
     
     Args:
-        state: The current puzzle state containing piece positions
-        centroids_file: Path to the JSON file with target centroids
+        state: The current puzzle state containing piece positions; 
+               `state.assembly` is assumed to be a 2D array or similar structure.
+        centroids_file: Path to the JSON file with target centroids.
         
     Returns:
-        completion_percentage: Overall percentage of puzzle completion
-        piece_distances: Dictionary of distances for each piece
+        completion_percentage (float): Overall percentage of puzzle completion.
+        piece_distances (dict): Dictionary of distances for each piece.
+        mse_distance (float): Mean squared error of distances.
     """
     # Load centroids data
     with open(centroids_file, 'r') as f:
@@ -380,8 +479,13 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     
     # Extract piece information from state
     piece_positions = {}
-
-    # GET PIECE CURRENT CENTROID POSITION
+    for row_index, row in enumerate(state.assembly):
+        for col_index, piece_id in enumerate(row):
+            if piece_id is not None:
+                piece_positions[piece_id] = {
+                    "x": col_index,
+                    "y": row_index
+                }
 
     # Calculate distance for each piece
     max_distance = 0
@@ -403,9 +507,11 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
             total_distance += distance
             
             # Track theoretical maximum distance (diagonal of screen)
-            # This assumes a 974x758 screen based on the screenshot dimensions in the code
+            # This assumes a 974x758 screen based on the screenshot dimensions
+            # TODO: bro how did u get this number lmao
             max_distance += math.sqrt(974**2 + 758**2)
         else:
+            # Missing piece in the current assembly
             piece_distances[piece_id] = float('inf')
             total_distance += math.sqrt(974**2 + 758**2)  # Add max possible distance for missing pieces
             max_distance += math.sqrt(974**2 + 758**2)
@@ -417,14 +523,30 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     else:
         normalized_distance = total_distance / max_distance
         completion_percentage = 100 * math.exp(-5 * normalized_distance)  # Exponential scaling
+        
+    # ------------------------------------------------------------
+    # 5. Calculate MSE (Mean Squared Error) of distances
+    # ------------------------------------------------------------
+    piece_count = len(piece_distances)
+    if piece_count == 0:
+        mse_distance = 0.0
+    else:
+        sum_of_squares = 0.0
+        for dist in piece_distances.values():
+            if dist == float('inf'):
+                # If a piece is missing, treat that distance as max possible
+                sum_of_squares += max_distance**2
+            else:
+                sum_of_squares += dist**2
+        mse_distance = sum_of_squares / piece_count
     
-    return completion_percentage, piece_distances
+    return completion_percentage, piece_distances, mse_distance
 
 def print_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
     """
     Print information about puzzle completion status.
     """
-    completion_percentage, piece_distances = calculate_puzzle_completion(state, centroids_file)
+    completion_percentage, piece_distances, mse_distance = calculate_puzzle_completion(state, centroids_file)
     
     print(f"\n{'='*50}")
     print(f"PUZZLE COMPLETION: {completion_percentage:.2f}%")
@@ -446,5 +568,11 @@ if __name__ == "__main__":
     # use render_state from env
     # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
-    trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on = True)
-    trainer.train(num_epochs=100)
+    
+    #trainer = Trainer(env, policy_model, value_model, False, optimizer, save_path="checkpoints", render_on = True)
+    #trainer.train(num_epochs=100)
+    
+    # smooth, and lazy
+    trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True)
+    trainer.train(num_epochs=5)
+    

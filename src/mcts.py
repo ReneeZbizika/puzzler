@@ -25,7 +25,7 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 MAX_SIM_DEPTH = 10
 TIME_PER_MOVE = 1.0
 MCTS_ITERATIONS = 10  # Instead of 100
-COMPATIBILITY_THRESHOLD = 0.5
+COMPATIBILITY_THRESHOLD = 0.5 #this is not used lol?
 C = 1.0  # Exploration constant
 
 
@@ -177,7 +177,6 @@ def selection(node, policy_model):
             # Convert child's action to an integer index.
             idx = action_to_index(child.parent.state, child.action)
             pi = policy_network_forward(child.parent.state, policy_model)[0, idx].item()
-            #pi = policy_network_forward(child.parent.state, policy_model)[child.action]  # pseudo-access; adjust as needed
             ucb_score = (child.total_reward / (child.visits + 1e-5) +
                          C * pi * (math.sqrt(node.visits) / (1 + child.visits)))
             if ucb_score > best_score:
@@ -353,7 +352,21 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
           f"[Visits: {best_child.visits}] [Avg Reward: {best_child.total_reward/max(1, best_child.visits):.4f}]")
     print(f"{'='*50}")
     
-    return best_child.action
+    # NEW: for target policy Build a distribution from visit counts
+    total_visits = sum(child.visits for child in root.children)
+    if total_visits == 0:
+        # Fallback if, for some reason, there were zero visits
+        # (e.g. all children got 0 visits)
+        # Return uniform distribution or something to avoid div by 0
+        action_distribution = {}
+        for child in root.children:
+            action_distribution[child.action] = 1.0 / len(root.children)
+    else:
+        action_distribution = {}
+        for child in root.children:
+            action_distribution[child.action] = child.visits / total_visits
+    
+    return best_child.action, action_distribution
 
 # Then, in your Train.py (or wherever you call MCTS), 
 # you can pass render=False for training runs, and render=True 
@@ -539,3 +552,20 @@ def action_to_index(state, action):
     # Calculate the overall index.
     index = piece_index * len(candidate_moves) + move_index
     return index
+
+# Only use for MCTS w/ smooth learn w/ target policy
+def build_distribution_tensor(action_distribution, state):
+    """
+    Takes a dictionary of {action: probability} from MCTS
+    and converts it into a 1 x num_actions tensor.
+    """
+    state_dim, action_dim, v_dim = get_dimensions()
+    num_actions = action_dim  # However you define your total action space
+    dist = torch.zeros(num_actions, dtype=torch.float32)
+
+    for action, prob in action_distribution.items():
+        idx = action_to_index(state, action)
+        dist[idx] = prob
+
+    # Return shape (1, num_actions)
+    return dist.unsqueeze(0)  

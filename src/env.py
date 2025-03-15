@@ -369,13 +369,6 @@ def load_puzzle_pieces():
     return [{"id": i, "edges": None} for i in range(1, total_pieces + 1)]
 """
 
-def initialize_edge_info():
-    """
-    Initializes edge compatibility information.
-    Can be computed based on image analysis or loaded from a dataset.
-    """
-    return np.random.rand(25, 4)  # Example: 25 pieces with 4 edge values each
-
 #TODO
 def reset():
         # Properly initialize and return a State object.
@@ -484,3 +477,4 @@ def is_piece_correctly_placed(state, piece_id):
     """
     # Placeholder implementation - replace with your actual logic
     return False
+
