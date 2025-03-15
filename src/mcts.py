@@ -22,11 +22,11 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 #evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility)
 
 # Constants (set these appropriately)
-MAX_SIM_DEPTH = 2 # change from 10 to 2
-TIME_PER_MOVE = 1.0
+MAX_SIM_DEPTH = 4 # change from 10 to 2
+TIME_PER_MOVE = 0.01
 MCTS_ITERATIONS = 10  # Instead of 100, change to 5
 COMPATIBILITY_THRESHOLD = 0.5
-C = 1.0  # Exploration constant
+C = 0.25  # Exploration constant
 
 
 # --- Neural Network Helper Functions (Using PyTorch) ---

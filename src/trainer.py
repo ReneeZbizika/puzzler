@@ -31,7 +31,7 @@ optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parame
 GAMMA = 0.99  # Standard discount factor for reinforcement learning
 
 # Add a constant for max steps per epoch
-MAX_STEPS_PER_EPOCH = 1
+MAX_STEPS_PER_EPOCH = 5
 
 def load_models(policy_model, value_model, save_path):
     # Import the flag from env
@@ -570,4 +570,4 @@ def print_puzzle_completion(state, centroids_file=centroids_folder):
 if __name__ == "__main__":
     # Instantiate the Trainer using the environment, models, and optimizer.
     trainer = Trainer(env, policy_model, value_model, optimizer, save_path="checkpoints", render_on=True)
-    trainer.train(num_epochs=10)
+    trainer.train(num_epochs=5)
