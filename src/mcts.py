@@ -22,9 +22,9 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 #evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility)
 
 # Constants (set these appropriately)
-MAX_SIM_DEPTH = 10
+MAX_SIM_DEPTH = 2 # change from 10 to 2
 TIME_PER_MOVE = 1.0
-MCTS_ITERATIONS = 10  # Instead of 100
+MCTS_ITERATIONS = 10  # Instead of 100, change to 5
 COMPATIBILITY_THRESHOLD = 0.5
 C = 1.0  # Exploration constant
 
@@ -344,9 +344,20 @@ def MCTS(root_state, policy_model, value_model, iterations=100, render=False, re
         print("[WARNING] [Root node has no children!]")
     
     # Select best child
+    #TODO: how do we want to handle no actions found?
     if not root.children:
+<<<<<<< Updated upstream
         print("[ERROR] [No valid actions found!]")
         return None
+=======
+        #print("No valid actions found!")
+        #print("No valid actions found. Returning a no-op action.")
+        print("No valid actions left; treating this as a terminal state.")
+        done = True
+        return
+        #return Action(piece_id=None, dx=0, dy=0)
+        #return None
+>>>>>>> Stashed changes
     
     best_child = max(root.children, key=lambda child: child.visits)
     print(f"\n[SELECTED BEST ACTION] [Piece ID: {best_child.action.piece_id}, dx: {best_child.action.dx}, dy: {best_child.action.dy}] "
