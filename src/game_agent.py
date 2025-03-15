@@ -4,21 +4,28 @@ import pygame
 import random
 import time
 import numpy as np
+import json  # Add import for JSON handling
 
 from env import State, Action, Piece
 from env import apply_action, is_terminal, render_state, image_name
 #set_puzzle_dimensions
-from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
+# Remove the import of dimensions since we'll load them directly
+# from env import BOX_WIDTH, BOX_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
 from env import load_puzzle_pieces
 from mcts import MCTS # Import your MCTS function from your MCTS module
 
 from trainer import policy_model, value_model
 
-# Initialize Pygame
-#print(BOX_WIDTH, BOX_HEIGHT)
-#print(SCREEN_WIDTH, SCREEN_HEIGHT)
+# Load parameters from the image's JSON file
+param_file_path = os.path.join("data/params/", f"{image_name}_params.json")
+with open(param_file_path, 'r') as f:
+    data = json.load(f)
 
-# Constants
+# Set dimensions from the JSON file
+BOX_WIDTH = data["BOX_WIDTH"]
+BOX_HEIGHT = data["BOX_HEIGHT"]
+SCREEN_WIDTH = data["SCREEN_WIDTH"]
+SCREEN_HEIGHT = data["SCREEN_HEIGHT"]
 BG_COLOR = (240, 240, 240)
 BOARD_COLOR = (180, 180, 180)
 BOX_X = 50
