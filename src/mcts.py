@@ -385,7 +385,7 @@ def update_assembly(assembly, action):
 # Global cache for centroids
 _CENTROIDS_CACHE = None
 
-def load_puzzle_centroids(filename="Datasets/puzzle_centroids.json"):
+def load_puzzle_centroids(filename="data/centroid_info/puzzle_centroids_img_2.json"):
     global _CENTROIDS_CACHE
     if _CENTROIDS_CACHE is not None:
         return _CENTROIDS_CACHE

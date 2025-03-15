@@ -14,7 +14,7 @@ from skimage.metrics import structural_similarity as ssim
 
 from env import img_name, image_name, root_eval
 # env variables
-root = "Datasets"
+root = "data"
 from env import BOX_WIDTH, BOX_HEIGHT, BOX_X, BOX_Y, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
 
 #TODO: write tests
@@ -272,7 +272,7 @@ def extract_edges_from_pieces(folder_path, num_resample_points=100):
     return edge_signatures, edge_to_piece_map, image_files
 
 #TODO check if edge_to_piece_map returns actually correct mapping
-def save_edge_to_piece_map(edge_to_piece_map, file_path="Datasets/evaluation/edge_to_piece_map.json"):
+def save_edge_to_piece_map(edge_to_piece_map, file_path="data/evaluation/edge_to_piece_map.json"):
     """
     Save the edge_to_piece map to a JSON file.
     
@@ -634,7 +634,7 @@ def extract_visual_features(state, image_name):
     
     # Load the target image
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    target_path = os.path.join(project_root, "data", f"{image_name}.jpg")
+    target_path = os.path.join(project_root, "data/images", f"{image_name}.jpg")
     target_img = cv2.imread(target_path)
     
     if target_img is None:

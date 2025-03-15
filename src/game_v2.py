@@ -152,7 +152,7 @@ def main():
     global selected_piece, dragging
     
     # Load actual puzzle pieces
-    load_puzzle_pieces("pieces_img_2")
+    load_puzzle_pieces("data/puzzle_pieces/pieces_img_2")
 
     clock = pygame.time.Clock()
     running = True

@@ -1,0 +1,8 @@
+Image: img_5.jpg
+Original dimensions: 2832x3540
+Scaled dimensions: 141x177
+Scale factor: 0.05
+Grid: 5x6
+Total pieces: 30
+Scale box: 3.76x3.76
+Command: python src/full_pipeline.py data/img_5.jpg --width 2832 --height 3540 --xn 5 --yn 6 --seed 9999 --tabsize 20 --jitter 4 --radius 2.0 --output_template_svg template.svg --output_template_png template.png --output_pieces_folder pieces_img_5 --threshold 200 --use_original_size --scale_factor 0.05 

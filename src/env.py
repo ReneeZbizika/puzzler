@@ -7,19 +7,14 @@ import time
 import json
 
 # --- Filepath definitions ---
-#TODO: make image_name dynamic hardcoding
 image_name = "img_2"
+img_name = image_name
+root_eval = "data/evaluation/"
 
+# root = "data"
 # Build the file path to your JSON file.
-#TODO change img_name to dynamic 
-params_folder = "params"
-img_name = "img_2"  # or derive from your original image path
-param_file_path = os.path.join(params_folder, f"{img_name}_params.json")
-#pieces_path = os.path.join(f"pieces_{img_name}") TODO - change this to puzzle_pieces/pieces_{image_name}
-
-root_eval = "Datasets/evaluation"
-#root = "Datasets"
-pieces_folder = f"pieces_{img_name}"
+param_file_path = os.path.join("data/params/", f"{image_name}_params.json")
+pieces_folder = os.path.join("data/puzzle_pieces", f"pieces_{image_name}")
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pieces_path = os.path.join(project_root, pieces_folder)
 

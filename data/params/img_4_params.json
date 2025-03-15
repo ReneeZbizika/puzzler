@@ -1,0 +1,15 @@
+{
+    "Image": "data/params/img_4.jpg",
+    "Original dimensions": "3840x2160",
+    "Scaled dimensions": "115x64",
+    "Scale factor": 0.03,
+    "Grid": "8x5",
+    "Num Row Pieces": 8,
+    "Num Col Pieces": 5,
+    "Total pieces": 40,
+    "BOX_WIDTH": 437,
+    "BOX_HEIGHT": 243,
+    "SCREEN_WIDTH": 855,
+    "SCREEN_HEIGHT": 564,
+    "Command": "python src/full_pipeline.py data/img_4.jpg --width 3840 --height 2160 --xn 8 --yn 5 --seed 5678 --tabsize 20 --jitter 4 --radius 2.0 --output_template_svg template.svg --output_template_png template.png --output_pieces_folder pieces_img_4 --threshold 200 --use_original_size --scale_factor 0.03"
+}

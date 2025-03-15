@@ -1,0 +1,8 @@
+Image: img_3.jpg
+Original dimensions: 3742x6000
+Scaled dimensions: 187x300
+Scale factor: 0.02
+Grid: 3x7
+Total pieces: 21
+Scale box: 1.5x1.5
+Command: python src/full_pipeline.py data/img_3.jpg --width 3742 --height 6000 --xn 3 --yn 7 --seed 314 --tabsize 20 --jitter 4 --radius 2.0 --output_template_svg template.svg --output_template_png template.png --output_pieces_folder pieces_img_3 --threshold 200 --use_original_size --scale_factor 0.02

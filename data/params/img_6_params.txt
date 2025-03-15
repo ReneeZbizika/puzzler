@@ -1,0 +1,8 @@
+Image: img_6.jpg
+Original dimensions: 6000x6000
+Scaled dimensions: 150x150
+Scale factor: 0.025
+Grid: 5x5
+Total pieces: 25
+Scale box: 3.76x3.76
+Command: python src/full_pipeline.py data/img_6.jpg --xn 5 --yn 5 --seed 1738 --output_template_svg template.svg --output_template_png template.png --output_pieces_folder pieces_img_6 --use_original_size --scale_factor 0.025

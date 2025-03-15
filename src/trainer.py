@@ -2,7 +2,7 @@ import os
 import torch
 import torch.optim as optim
 import numpy
-import matplotlib as plt
+import matplotlib.pyplot as plt
 import pygame
 import torch.nn.functional as F
 import datetime
@@ -10,7 +10,7 @@ import json
 import math
 
 import env
-from env import get_dimensions, image_name, img_name, render_state, apply_action, is_terminal
+from env import get_dimensions, image_name, render_state, apply_action, is_terminal
 from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS, compute_intermediate_reward, TIME_PER_MOVE, action_to_index
 #state_dim, action_dim, visual_dim,
 from models import PolicyNetwork, ValueNetwork
@@ -31,7 +31,7 @@ optimizer = optim.Adam(list(policy_model.parameters()) + list(value_model.parame
 GAMMA = 0.99  # Standard discount factor for reinforcement learning
 
 # Add a constant for max steps per epoch
-MAX_STEPS_PER_EPOCH = 100
+MAX_STEPS_PER_EPOCH = 1
 
 def load_models(policy_model, value_model, save_path, epoch=None):
     """
@@ -148,6 +148,8 @@ class Trainer:
         self.losses = []
         self.episode_rewards = []
         self.episode_lengths = []
+        self.completion_rates = []  # Track puzzle completion
+        self.avg_rewards_per_step = []  # New list to track average reward per step
         
         # Add tracking for best model
         self.best_reward = float('-inf')
@@ -245,32 +247,100 @@ class Trainer:
                 print(f"  [NEW BEST MODEL at epoch {epoch} with reward {total_reward:.4f}]")
             
             self.log_metrics(epoch)
+            
+            # At the end of each episode, after the loop:
+            # Capture the final completion rate for this episode
+            final_completion_rate = print_puzzle_completion(state)
+            self.completion_rates.append(final_completion_rate)
+            
+            # Calculate average reward per step
+            avg_reward = total_reward / num_moves if num_moves > 0 else 0
+            self.avg_rewards_per_step.append(avg_reward)
+            
         print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
         print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
         self.plot_progress()
 
     def plot_progress(self):
-        """Plot loss, total reward, and moves per episode over training epochs."""
-        plt.figure(figsize=(12, 4))
+        """Plot training metrics including puzzle completion rate and average reward per step."""
+        # Create graphs directory if it doesn't exist
+        graphs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
+                              "data", "evaluation", "graphs")
+        os.makedirs(graphs_dir, exist_ok=True)
         
-        plt.subplot(1, 3, 1)
+        # Create timestamp for unique filenames
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create figure with a 3x2 grid of subplots
+        plt.figure(figsize=(15, 12))
+        
+        plt.subplot(3, 2, 1)
         plt.plot(self.losses, label="Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
+        plt.title("Training Loss")
         plt.legend()
         
-        plt.subplot(1, 3, 2)
+        plt.subplot(3, 2, 2)
         plt.plot(self.episode_rewards, label="Total Reward")
         plt.xlabel("Epoch")
         plt.ylabel("Reward")
+        plt.title("Episode Total Reward")
         plt.legend()
         
-        plt.subplot(1, 3, 3)
-        plt.plot(self.episode_lengths, label="Moves per Episode")
+        plt.subplot(3, 2, 3)
+        plt.plot(self.episode_lengths, label="Steps")
         plt.xlabel("Epoch")
-        plt.ylabel("Moves")
+        plt.ylabel("Steps")
+        plt.title("Episode Length")
         plt.legend()
         
+        plt.subplot(3, 2, 4)
+        plt.plot(self.completion_rates, label="Completion %", color="green")
+        plt.xlabel("Epoch")
+        plt.ylabel("Completion %")
+        plt.title("Puzzle Completion Rate")
+        plt.legend()
+        
+        plt.subplot(3, 2, 5)
+        plt.plot(self.avg_rewards_per_step, label="Avg Reward/Step", color="purple", marker='o')
+        plt.xlabel("Epoch")
+        plt.ylabel("Average Reward")
+        plt.title("Average Reward Per Step")
+        plt.legend()
+        
+        plt.tight_layout()
+        
+        # Save the combined figure
+        combined_path = os.path.join(graphs_dir, f"training_metrics_{timestamp}.png")
+        plt.savefig(combined_path)
+        print(f"Saved training metrics to {combined_path}")
+        
+        # Also save individual plots
+        
+        # Average reward per step plot
+        plt.figure(figsize=(8, 6))
+        plt.plot(self.avg_rewards_per_step, label="Avg Reward/Step", color="purple", marker='o')
+        plt.xlabel("Epoch")
+        plt.ylabel("Average Reward")
+        plt.title("Average Reward Per Step")
+        plt.grid(True)
+        plt.legend()
+        avg_reward_path = os.path.join(graphs_dir, f"avg_reward_per_step_{timestamp}.png")
+        plt.savefig(avg_reward_path)
+        
+        # Completion rate plot
+        plt.figure(figsize=(8, 6))
+        plt.plot(self.completion_rates, label="Completion %", color="green", marker='o')
+        plt.xlabel("Epoch")
+        plt.ylabel("Completion %")
+        plt.title("Puzzle Completion Rate")
+        plt.grid(True)
+        plt.legend()
+        completion_path = os.path.join(graphs_dir, f"completion_rate_{timestamp}.png")
+        plt.savefig(completion_path)
+        
+        # Still show the plots if in an interactive environment
         plt.show()
 
     def select_action(self, state):
@@ -363,7 +433,7 @@ class Trainer:
         
         return filepath
 
-def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+def calculate_puzzle_completion(state, centroids_file="data/centroid_info/puzzle_centroids_img_2.json"):
     """
     Calculate how close the puzzle pieces are to their target positions.
     
@@ -422,7 +492,7 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     
     return completion_percentage, piece_distances
 
-def print_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids.json"):
+def print_puzzle_completion(state, centroids_file="data/centroid_info/puzzle_centroids_img_2.json"):
     """
     Print information about puzzle completion status.
     """
