@@ -470,8 +470,7 @@ def step(state, action):
     reward = 0.0
     if hasattr(next_state, 'pieces') and hasattr(action, 'piece_id'):
         # Check if the piece is in the correct position
-        # This is a simplified version - you might want to use your existing reward function
-        reward = 1.0 if is_piece_correctly_placed(next_state, action.piece_id) else -0.1
+        reward = 50.0 if is_piece_correctly_placed(next_state, action.piece_id) else -0.1
     
     # Check if the episode is done
     done = is_terminal(next_state)

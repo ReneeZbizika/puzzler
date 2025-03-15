@@ -22,12 +22,11 @@ from utils_features import evaluate_assembly_compatibility, extract_visual_featu
 #evaluate_assembly_compatibility(assembly_state, edge_to_piece_map, edge_compatibility)
 
 # Constants (set these appropriately)
-MAX_SIM_DEPTH = 4 # change from 10 to 2
+MAX_SIM_DEPTH = 5 # change from 10 to 2
 TIME_PER_MOVE = 0.01
-MCTS_ITERATIONS = 10  # Instead of 100, change to 5
+MCTS_ITERATIONS = 5  # Instead of 100, change to 5
 COMPATIBILITY_THRESHOLD = 0.5
 C = 0.25  # Exploration constant
-
 
 # --- Neural Network Helper Functions (Using PyTorch) ---
 def convert_state_to_tensor(state):
@@ -502,14 +501,13 @@ def compute_intermediate_reward(state, action, time_penalty, mode='assembly'):
         
         if is_piece_correctly_assembled(state, action.piece_id, centroids, tolerance): 
             # Give a positive reward if correctly assembled (you can tune this value)
-            reward = 5.0 - time_penalty
+            reward = 50.0 - time_penalty
         else:
             # Otherwise, provide a negative or zero reward (penalize the time penalty)
-            reward = -time_penalty
+            reward = -time_penalty  
         return reward
     else:
         raise ValueError("Invalid mode. Choose 'visual' or 'assembly'.")
-
 
 # --- Conversions ---
 #TODO allow for unfixed candidate moves
