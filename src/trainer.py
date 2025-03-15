@@ -362,7 +362,7 @@ class Trainer:
                 self.save_best_model(epoch, total_reward)
                 print(f"  [NEW BEST REWARD MODEL at epoch {epoch} with reward {total_reward:.4f}]")
                 
-            current_loss = loss.item()
+            current_loss = self.losses[-1]
             if current_loss < self.best_loss:
                 self.best_loss = current_loss
                 self.best_epoch_loss = epoch
@@ -372,7 +372,7 @@ class Trainer:
             self.log_metrics(epoch)
         print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
         print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
-        print(f"Best loss model was from epoch {self.best_epoch_loss} with loss {self.best_loss:.4f}")
+        print(f"Best loss model was from epoch {self.best_epoch_loss} with loss {self.best_loss}")
         self.plot_progress()
 
     def plot_progress(self):
@@ -625,6 +625,6 @@ if __name__ == "__main__":
     #trainer.train(num_epochs=100, max_steps = 100)
     
     # smooth, and lazy
-    trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True, loss_model = True)
+    trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True, loss_model = False)
     trainer.train(num_epochs=5, max_steps=5)
     

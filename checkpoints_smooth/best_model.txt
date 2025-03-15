@@ -1,5 +1,5 @@
 Epoch: 0
-Reward: -0.05
-Episode Length: 5
-Loss: 8.280508995056152
-Timestamp: 2025-03-14 20:11:32
+Reward: -0.01
+Episode Length: 1
+Loss: 8.308765411376953
+Timestamp: 2025-03-14 20:22:49
