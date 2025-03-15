@@ -343,7 +343,7 @@ class Trainer:
             self.log_metrics(epoch)
         print(f"\n{'='*50}\n[TRAINING COMPLETED]\n{'='*50}")
         print(f"Best model was from epoch {self.best_epoch} with reward {self.best_reward:.4f}")
-        self.plot_progress()
+        self.plot_progress(self.save_path)
 
     def plot_progress(self):
         """Plot loss, total reward, and moves per episode over training epochs."""
@@ -368,6 +368,7 @@ class Trainer:
         plt.legend()
         
         plt.show()
+        plt.save(self.save_path)
 
     def select_action(self, state):
         """Select the next action using MCTS."""
