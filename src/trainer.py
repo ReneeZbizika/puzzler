@@ -216,9 +216,9 @@ class Trainer:
                 # Print action, reward and loss information on same line
                 print(f"[Action: {action}] [Reward: {reward:.4f}] [Loss: {loss.item():.4f}]")
                 
-                # Save screenshot every 5 steps
+                print_puzzle_completion(state)
+
                 if self.render_on and num_moves % 50 == 0:
-                    # print_puzzle_completion(state) undo after fix
                     self.save_screenshot(epoch_dir, num_moves, state)
                     print(f"[Saved puzzle state screenshot for step {num_moves}]")
                 
@@ -379,18 +379,10 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
     with open(centroids_file, 'r') as f:
         centroids_data = json.load(f)
     
-    # Extract piece information from state
     piece_positions = {}
-    for row_index, row in enumerate(state.assembly):
-        for col_index, piece_id in enumerate(row):
-            if piece_id is not None:  # There's a piece at this cell
-                # Use (col_index, row_index) as the "centroid"
-                piece_positions[piece_id] = {
-                    "x": col_index,
-                    "y": row_index
-                }
-
-    # GET PIECE CURRENT CENTROID POSITION
+    for piece_id, piece_obj in state.pieces.items():
+        formatted_id = f"piece_{piece_id}"
+        piece_positions[formatted_id] = {"x": piece_obj.x, "y": piece_obj.y}
 
     # Calculate distance for each piece
     max_distance = 0
@@ -413,22 +405,20 @@ def calculate_puzzle_completion(state, centroids_file="Datasets/puzzle_centroids
             piece_distances[piece_id] = distance
             total_distance += distance
             
-            
-            # Track theoretical maximum distance (diagonal of screen)
-            # This assumes a 974x758 screen based on the screenshot dimensions in the code
+            # Track theoretical maximum distance
             max_distance += max_single_piece_distance
         else:
             piece_distances[piece_id] = float('inf')
-            total_distance += max_single_piece_distance  # Add max possible distance for missing pieces
+            total_distance += max_single_piece_distance
             max_distance += max_single_piece_distance
+            print(f"Piece {piece_id} not found in current state")
     
-    # Calculate completion percentage (inverted - closer means higher percentage)
-    # Using an exponential decay formula to make percentage more meaningful
-    if max_distance == 0:  # Safety check
+    # Calculate completion percentage
+    if max_distance < 1e-6:
         completion_percentage = 100.0
     else:
         normalized_distance = total_distance / max_distance
-        completion_percentage = 100 * math.exp(-5 * normalized_distance)  # Exponential scaling
+        completion_percentage = 100 * math.exp(-5 * normalized_distance)
     
     return completion_percentage, piece_distances
 
