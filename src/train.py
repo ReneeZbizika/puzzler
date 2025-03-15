@@ -31,9 +31,12 @@ def main():
         env=env,
         policy_model=policy_model,
         value_model=value_model,
+        smooth=False
         optimizer=optimizer,
         save_path="checkpoints",
         render_on=render_on  # pass the flag
+        
+        
     )
     trainer.train(num_epochs=100)
 

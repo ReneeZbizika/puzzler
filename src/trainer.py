@@ -33,6 +33,10 @@ GAMMA = 0.99  # Standard discount factor for reinforcement learning
 # Add a constant for max steps per epoch
 MAX_STEPS_PER_EPOCH = 100
 
+# OVERRIDE MCTS_ITERATIONS from mcts, for lazy
+# LAZY
+MCTS_ITERATIONS = 5
+ 
 def load_models(policy_model, value_model, save_path, epoch=None):
     """
     Load saved models from checkpoint.
@@ -68,7 +72,7 @@ def load_models(policy_model, value_model, save_path, epoch=None):
         return False
 
 #TODO: mcts_target_policy
-def mcts_target_policy(state, policy_model, value_model, mcts_iterations = MCTS_ITERATIONS):
+def mcts_target_policy(state, policy_model, value_model, iterations = MCTS_ITERATIONS):
     """
     Placeholder function to generate a target policy from MCTS visit counts.
     Replace this with your actual target policy logic.
@@ -85,7 +89,7 @@ def mcts_target_policy(state, policy_model, value_model, mcts_iterations = MCTS_
         root_state=state,
         policy_model=policy_model,
         value_model=value_model,
-        iterations=mcts_iterations,
+        iterations=iterations,
         render=False
     )
     
@@ -173,7 +177,6 @@ def compute_loss(state, action, reward, next_state, visual_features, next_visual
     
     return loss
 
-#TODO: fill in
 def compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features, next_visual_features, 
                             policy_model, value_model, gamma):
                 """
@@ -234,6 +237,10 @@ class Trainer:
         
         # Create progress directory for screenshots
         self.progress_dir = "progress"
+        # if smoothing is on, save to a diff directory
+        if (self.smooth == True):
+            self.progress_dir = "progress_smooth"
+            
         os.makedirs(self.progress_dir, exist_ok=True)
         
         # Try to load the best model if it exists
@@ -243,7 +250,7 @@ class Trainer:
         else:
             print("Starting with fresh models.")
 
-    def train(self, num_epochs):
+    def train(self, num_epochs, max_steps):
         print(f"\n{'='*50}\n[STARTING TRAINING: {num_epochs} EPOCHS]\n{'='*50}")
         for epoch in range(num_epochs):
             # Create epoch directory for screenshots
@@ -267,11 +274,11 @@ class Trainer:
                 print(f"[Saved initial puzzle state screenshot]")
             
             # Add a step limit to prevent infinite loops
-            while not done and num_moves < MAX_STEPS_PER_EPOCH:
+            while not done and num_moves < max_steps:
                 num_moves += 1
                 
                 # Print epoch and step on the same line
-                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}/{MAX_STEPS_PER_EPOCH}]", end=" ")
+                print(f"[EPOCH {epoch+1}/{num_epochs}] [STEP {num_moves}/{max_steps}]", end=" ")
                 
                 # Extract visual features for the current state.
                 current_visual_features = extract_visual_features(state, image_name)
@@ -284,13 +291,13 @@ class Trainer:
                 # 1) Call MCTS to get both the best action and the distribution
                 # Smoothing on
                 if (self.smooth):
-                    mcts_policy = mcts_target_policy(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+                    mcts_policy = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
                     # If you also want the best action from the same MCTS run:
                     # single call:
                     # best_action = pick an action from action_distribution (like argmax)
 
                     # multiple calls
-                    action, action_distribution = MCTS(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+                    action, action_distribution = MCTS(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
 
                 # Apply the action: get next_state, reward, etc.
                 next_state, reward, done, info = self.step(state, action)
@@ -374,7 +381,7 @@ class Trainer:
                                 self.policy_model, self.value_model, GAMMA)
         if (self.smooth == True):
             # 1) Get MCTS distribution for current state
-            mcts_dist = mcts_target_policy(state, self.policy_model, self.value_model, mcts_iterations=MCTS_ITERATIONS)
+            mcts_dist = mcts_target_policy(state, self.policy_model, self.value_model, iterations=MCTS_ITERATIONS)
             loss = compute_loss_with_mcts(state, mcts_dist, reward, next_state, visual_features, next_visual_features, 
                                 self.policy_model, self.value_model, GAMMA)
         self.optimizer.zero_grad()
@@ -569,10 +576,10 @@ if __name__ == "__main__":
     # if render off, pygame.display.set_mode((1, 1)) for minimal display
     # Instantiate the Trainer using the environment, models, and optimizer.
     
-    #trainer = Trainer(env, policy_model, value_model, False, optimizer, save_path="checkpoints", render_on = True)
-    #trainer.train(num_epochs=100)
+    #trainer = Trainer(env, policy_model, value_model, False, optimizer, save_path="checkpoints", render_on = True, max_steps = 100)
+    #trainer.train(num_epochs=100, max_steps = 100)
     
     # smooth, and lazy
     trainer = Trainer(env, policy_model, value_model, True, optimizer, save_path="checkpoints_smooth", render_on = True)
-    trainer.train(num_epochs=5)
+    trainer.train(num_epochs=5, max_steps=5)
     
