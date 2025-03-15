@@ -10,7 +10,7 @@ import json
 import math
 
 import env
-from env import get_dimensions, image_name, render_state, apply_action, is_terminal
+from env import get_dimensions, image_name, render_state, apply_action, is_terminal, centroids_folder
 from mcts import MCTS, convert_state_to_tensor,  MCTS_ITERATIONS, compute_intermediate_reward, TIME_PER_MOVE, action_to_index
 #state_dim, action_dim, visual_dim,
 from models import PolicyNetwork, ValueNetwork
@@ -433,7 +433,7 @@ class Trainer:
         
         return filepath
 
-def calculate_puzzle_completion(state, centroids_file="data/centroid_info/puzzle_centroids_img_2.json"):
+def calculate_puzzle_completion(state, centroids_file=centroids_folder):
     """
     Calculate how close the puzzle pieces are to their target positions.
     
@@ -492,7 +492,7 @@ def calculate_puzzle_completion(state, centroids_file="data/centroid_info/puzzle
     
     return completion_percentage, piece_distances
 
-def print_puzzle_completion(state, centroids_file="data/centroid_info/puzzle_centroids_img_2.json"):
+def print_puzzle_completion(state, centroids_file=centroids_folder):
     """
     Print information about puzzle completion status.
     """

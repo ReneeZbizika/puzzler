@@ -7,14 +7,16 @@ import time
 import json
 
 # --- Filepath definitions ---
-image_name = "img_2"
+image_name = "img_6"
 img_name = image_name
 root_eval = "data/evaluation/"
 
 # root = "data"
 # Build the file path to your JSON file.
 param_file_path = os.path.join("data/params/", f"{image_name}_params.json")
-pieces_folder = os.path.join("data/puzzle_pieces", f"pieces_{image_name}")
+pieces_folder = os.path.join("data/puzzle_pieces/", f"pieces_{image_name}")
+edge_to_piece_map_folder = os.path.join("data/evaluation/", f"{image_name}_edge_to_piece_map.json")
+centroids_folder = os.path.join("data/centroid_info/", f"puzzle_centroids_{image_name}.json")
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pieces_path = os.path.join(project_root, pieces_folder)
 

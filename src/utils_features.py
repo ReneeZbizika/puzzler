@@ -12,7 +12,7 @@ import pygame
 import cv2
 from skimage.metrics import structural_similarity as ssim
 
-from env import img_name, image_name, root_eval
+from env import img_name, image_name, root_eval, edge_to_piece_map_folder
 # env variables
 root = "data"
 from env import BOX_WIDTH, BOX_HEIGHT, BOX_X, BOX_Y, SCREEN_WIDTH, SCREEN_HEIGHT, BG_COLOR
@@ -272,7 +272,7 @@ def extract_edges_from_pieces(folder_path, num_resample_points=100):
     return edge_signatures, edge_to_piece_map, image_files
 
 #TODO check if edge_to_piece_map returns actually correct mapping
-def save_edge_to_piece_map(edge_to_piece_map, file_path="data/evaluation/edge_to_piece_map.json"):
+def save_edge_to_piece_map(edge_to_piece_map, file_path=edge_to_piece_map_folder):
     """
     Save the edge_to_piece map to a JSON file.
     
@@ -339,7 +339,7 @@ if __name__ == "__main__":
     base_name = os.path.splitext(image_name)[0]
     
     # Use the base name to construct folder and file names.
-    folder_path = f"pieces_{base_name}"
+    folder_path = f"data/puzzle_pieces/pieces_{base_name}/"
     
     # Extract edges and compute compatibility
     edge_signatures, edge_to_piece_map, image_files = extract_edges_from_pieces(folder_path)

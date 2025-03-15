@@ -10,7 +10,7 @@ import time
 import argparse
 import json
 
-from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves
+from env import State, Action, Piece, apply_action, valid_actions, is_terminal, possible_moves, centroids_folder
 from env import initialize_state
 from models import PolicyNetwork, ValueNetwork
 from env import get_dimensions
@@ -385,7 +385,7 @@ def update_assembly(assembly, action):
 # Global cache for centroids
 _CENTROIDS_CACHE = None
 
-def load_puzzle_centroids(filename="data/centroid_info/puzzle_centroids_img_2.json"):
+def load_puzzle_centroids(filename=centroids_folder):
     global _CENTROIDS_CACHE
     if _CENTROIDS_CACHE is not None:
         return _CENTROIDS_CACHE
