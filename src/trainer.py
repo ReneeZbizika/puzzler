@@ -60,7 +60,6 @@ def load_models(policy_model, value_model, save_path):
         print("Starting with fresh models.")
         return False
 
-#TODO: mcts_target_policy
 def mcts_target_policy(state):
     """
     Placeholder function to generate a target policy from MCTS visit counts.
