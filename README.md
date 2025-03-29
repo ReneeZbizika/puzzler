@@ -1,3 +1,7 @@
+# Credits
+
+Adrian Mendoza Perez and Renee Zbizika
+
 # Jigsaw Puzzle Generator
 
 This project takes an image file and divides it into jigsaw puzzle pieces, saving each piece as an SVG file.
